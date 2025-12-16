@@ -55,26 +55,45 @@ Double-click the shortcut on your desktop to launch the app.
 
 ## Linux / Ubuntu
 
-### 1. Install Python and Dependencies
+### 1. Install Python and System Dependencies
 
 ```bash
 sudo apt update
 sudo apt upgrade -y
-sudo apt install -y python3 python3-pip python3-pyqt6 python3-pyqt6.qtwebengine
+sudo apt install -y python3 python3-pip python3-venv git
 ```
 
-### 2. Install Python Packages
+**Optional:** Install Qt dependencies (may help avoid issues):
+```bash
+sudo apt install -y libgl1-mesa-dev libxkbcommon-x11-0 libdbus-1-3
+```
+
+### 2. Create Virtual Environment (Recommended)
 
 ```bash
 cd /path/to/ntrip-checker-pro
-pip3 install -r requirements.txt
+python3 -m venv venv
+source venv/bin/activate
 ```
 
-### 3. Run the Application
+### 5. Create a Desktop Launcher (Optional)
 
-```bash
-python3 ntrip_checker_pro_v5_0.py
+Create a file `~/.local/share/applications/ntrip-checker.desktop`:
+
+```ini
+[Desktop Entry]
+Type=Application
+Name=NTRIP Checker PRO
+Comment=GNSS NTRIP Client
+Exec=/full/path/to/venv/bin/python3 /full/path/to/ntrip_checker_pro_v5_0.py
+Icon=network-wireless
+Terminal=false
+Categories=Utility;Network;
 ```
+
+**Note:** If not using venv, replace with system Python:
+```ini
+Exec=python3 /full/path/to/ntrip_checker_pro_v5_0.py
 
 ### 4. Create a Desktop Launcher (Optional)
 
