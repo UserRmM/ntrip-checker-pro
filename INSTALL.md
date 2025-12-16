@@ -68,15 +68,36 @@ sudo apt install -y python3 python3-pip python3-venv git
 sudo apt install -y libgl1-mesa-dev libxkbcommon-x11-0 libdbus-1-3
 ```
 
-### 2. Create Virtual Environment (Recommended)
+### 2. Clone the Repository
 
 ```bash
-cd /path/to/ntrip-checker-pro
+cd ~
+git clone https://github.com/UserRmM/ntrip-checker-pro.git
+cd ntrip-checker-pro
+```
+
+### 3. Create Virtual Environment (Recommended)
+
+```bash
 python3 -m venv venv
 source venv/bin/activate
 ```
 
-### 5. Create a Desktop Launcher (Optional)
+### 4. Install Python Packages
+
+```bash
+pip3 install -r requirements.txt
+```
+
+**Note:** Installation may take 5-10 minutes (PyQt6 packages are large).
+
+### 5. Run the Application
+
+```bash
+python3 ntrip_checker_pro_v5_0.py
+```
+
+### 6. Create a Desktop Launcher (Optional)
 
 Create a file `~/.local/share/applications/ntrip-checker.desktop`:
 
@@ -85,29 +106,15 @@ Create a file `~/.local/share/applications/ntrip-checker.desktop`:
 Type=Application
 Name=NTRIP Checker PRO
 Comment=GNSS NTRIP Client
-Exec=/full/path/to/venv/bin/python3 /full/path/to/ntrip_checker_pro_v5_0.py
+Exec=/home/YOUR_USERNAME/ntrip-checker-pro/venv/bin/python3 /home/YOUR_USERNAME/ntrip-checker-pro/ntrip_checker_pro_v5_0.py
 Icon=network-wireless
 Terminal=false
 Categories=Utility;Network;
 ```
 
-**Note:** If not using venv, replace with system Python:
+**Note:** Replace `YOUR_USERNAME` with your actual username. If not using venv, use:
 ```ini
-Exec=python3 /full/path/to/ntrip_checker_pro_v5_0.py
-
-### 4. Create a Desktop Launcher (Optional)
-
-Create a file `~/.local/share/applications/ntrip-checker.desktop`:
-
-```ini
-[Desktop Entry]
-Type=Application
-Name=NTRIP Checker PRO
-Comment=GNSS NTRIP Client
-Exec=python3 /full/path/to/ntrip_checker_pro_v5_0.py
-Icon=network-wireless
-Terminal=false
-Categories=Utility;Network;
+Exec=python3 /home/YOUR_USERNAME/ntrip-checker-pro/ntrip_checker_pro_v5_0.py
 ```
 
 Then make it executable:
@@ -140,10 +147,17 @@ sudo apt install -y python3 python3-pip python3-dev git \
   libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xfixes0
 ```
 
-### 2. Install Python Dependencies
+### 2. Clone the Repository
 
 ```bash
-cd /path/to/ntrip-checker-pro
+cd ~
+git clone https://github.com/UserRmM/ntrip-checker-pro.git
+cd ntrip-checker-pro
+```
+
+### 3. Install Python Dependencies
+
+```bash
 pip3 install -r requirements.txt --break-system-packages
 ```
 
@@ -158,7 +172,7 @@ pip3 install -r requirements.txt --break-system-packages
   sudo dphys-swapfile swapon
   ```
 
-### 3. Run the Application
+### 4. Run the Application
 
 ```bash
 python3 ntrip_checker_pro_v5_0.py
@@ -168,7 +182,7 @@ python3 ntrip_checker_pro_v5_0.py
 - HDMI display + keyboard/mouse, OR
 - SSH with X11 forwarding for remote desktop
 
-### 4. Start on Boot (Optional)
+### 5. Start on Boot (Optional)
 
 Edit crontab:
 ```bash
