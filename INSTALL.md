@@ -12,7 +12,7 @@
    - Open PowerShell or Command Prompt
    - Navigate to the project folder:
      ```powershell
-     cd "D:\Job\Schakten GNSS reference base station\Oma Ntrip Checker\Versio 5.0"
+     cd path\to\ntrip-checker-pro
      ```
    - Install required packages:
      ```powershell
@@ -35,7 +35,7 @@ if (-not $pythonw) {
   $pythonw = "C:\Users\$env:USERNAME\AppData\Local\Programs\Python\Python311\pythonw.exe"
 }
 
-$script = "D:\Job\Schakten GNSS reference base station\Oma Ntrip Checker\Versio 5.0\ntrip_checker_pro_v5_0.py"
+$script = "C:\path\to\ntrip-checker-pro\ntrip_checker_pro_v5_0.py"
 $desktop = [Environment]::GetFolderPath('Desktop')
 $lnk = Join-Path $desktop "NTRIP Checker PRO.lnk"
 
