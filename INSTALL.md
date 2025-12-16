@@ -200,6 +200,28 @@ This will auto-launch the app 10 seconds after boot (adjust delay if needed).
 
 ## Troubleshooting
 
+### ImportError: cannot import name 'uic' from 'PyQt6' (Raspberry Pi/Linux)
+
+This occurs when system-installed PyQt6 is incomplete. 
+
+**Solution 1: Use Virtual Environment (Recommended)**
+```bash
+cd ~/ntrip-checker-pro
+python3 -m venv venv
+source venv/bin/activate
+pip3 install -r requirements.txt
+python3 ntrip_checker_pro_v5_0.py
+```
+
+**Solution 2: Reinstall PyQt6 via pip**
+```bash
+# Remove system PyQt6 packages
+sudo apt remove python3-pyqt6 python3-pyqt6.qtwebengine
+
+# Install complete PyQt6 from pip
+pip3 install --upgrade PyQt6 PyQt6-Qt6 PyQt6-WebEngine --break-system-packages
+```
+
 ### ModuleNotFoundError: No module named 'PyQt6'
 
 **Solution:**
