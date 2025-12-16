@@ -222,6 +222,13 @@ sudo apt remove python3-pyqt6 python3-pyqt6.qtwebengine
 pip3 install --upgrade PyQt6 PyQt6-Qt6 PyQt6-WebEngine --break-system-packages
 ```
 
+### ModuleNotFoundError: No module named 'PyQt6.QtWebEngineWidgets'
+
+**Solution:**
+```bash
+pip3 install PyQt6-WebEngine --break-system-packages
+```
+
 ### ModuleNotFoundError: No module named 'PyQt6'
 
 **Solution:**
