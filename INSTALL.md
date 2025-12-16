@@ -104,23 +104,40 @@ The app will appear in your application menu.
 
 ### 1. Prerequisites
 
+**Minimum Requirements:**
+- Raspberry Pi 4 (4GB RAM or more recommended)
+- Raspberry Pi OS (64-bit recommended for better performance)
+- Active internet connection
+
 ```bash
 # Update system
 sudo apt update
 sudo apt upgrade -y
 
-# Install required packages
-sudo apt install -y python3 python3-pip python3-pyqt6 python3-pyqt6.qtwebengine git
+# Install build dependencies
+sudo apt install -y python3 python3-pip python3-dev git \
+  build-essential cmake libgl1-mesa-dev libxkbcommon-x11-0 \
+  libdbus-1-3 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+  libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xfixes0
 ```
 
 ### 2. Install Python Dependencies
 
 ```bash
 cd /path/to/ntrip-checker-pro
-pip3 install -r requirements.txt
+pip3 install -r requirements.txt --break-system-packages
 ```
 
-**Note:** Installation may take 5-10 minutes on Raspberry Pi (ARM processor is slower).
+**Note:** 
+- Installation may take **15-30 minutes** on Raspberry Pi (compiling PyQt6 from source)
+- PyQt6-QtWebEngine (needed for the Map tab) is very resource-intensive
+- If installation fails due to memory constraints, try increasing swap space:
+  ```bash
+  sudo dphys-swapfile swapoff
+  sudo nano /etc/dphys-swapfile  # Set CONF_SWAPSIZE=2048
+  sudo dphys-swapfile setup
+  sudo dphys-swapfile swapon
+  ```
 
 ### 3. Run the Application
 
