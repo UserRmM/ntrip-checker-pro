@@ -147,8 +147,6 @@ def get_color_for_msg_type(msg_type):
     ]
     return colors[hash(str(msg_type)) % len(colors)]
 
-CASTERS_FILENAME = "casters.json"
-
 # ---------- Signals ----------
 class NTRIPSignals(QObject):
     status_signal = pyqtSignal(str, str)
