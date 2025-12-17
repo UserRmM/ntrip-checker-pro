@@ -17,6 +17,63 @@ from qt_material import apply_stylesheet
 
 CASTERS_FILENAME = "casters.json"
 
+# Satellite data extraction
+def extract_satellite_info(parsed):
+    """Extract satellite information from RTCM message."""
+    satellites = {
+        'GPS': set(),
+        'GLONASS': set(),
+        'Galileo': set(),
+        'BeiDou': set(),
+        'QZSS': set(),
+        'SBAS': set()
+    }
+    
+    msg_type = getattr(parsed, "identity", "")
+    
+    # MSM messages (1071-1127) contain satellite info
+    # Handle both string and int types
+    msg_type_str = str(msg_type)
+    try:
+        msg_num = int(msg_type_str)
+        if 1071 <= msg_num <= 1127:
+            constellation_id = (msg_num - 1071) // 10
+            
+            # Map constellation ID to name
+            constellation_map = {
+                0: 'GPS',      # 1071-1077
+                1: 'GLONASS',  # 1081-1087
+                2: 'Galileo',  # 1091-1097
+                3: 'SBAS',     # 1101-1107
+                4: 'QZSS',     # 1111-1117
+                5: 'BeiDou'    # 1121-1127
+            }
+            
+            constellation = constellation_map.get(constellation_id)
+            if constellation:
+                # Extract satellite PRNs from PRN_XX fields (most reliable method)
+                nsat = getattr(parsed, 'NSat', 0)
+                if nsat > 0:
+                    for i in range(1, nsat + 1):
+                        prn_field = f'PRN_{i:02d}'
+                        if hasattr(parsed, prn_field):
+                            prn = getattr(parsed, prn_field)
+                            if isinstance(prn, int) and prn > 0:
+                                satellites[constellation].add(prn)
+                
+                # If no PRN fields found, try bit mask method
+                if not satellites[constellation]:
+                    sat_mask = getattr(parsed, 'DF394', None)
+                    if sat_mask is not None and isinstance(sat_mask, int) and sat_mask > 0:
+                        for prn in range(1, 65):
+                            if sat_mask & (1 << (prn - 1)):
+                                satellites[constellation].add(prn)
+                    
+    except (ValueError, AttributeError) as e:
+        logging.debug(f"Error extracting satellite info: {e}")
+    
+    return satellites
+
 # Color palette for RTCM message types
 def get_color_for_msg_type(msg_type):
     """Generate a consistent color for an RTCM message type."""
@@ -257,6 +314,7 @@ class NTRIPCheckerPro(QWidget):
         # Removed auto-refresh counter - user has full control
         self.selected_caster = None
         self.rtcm_stats = {}
+        self.satellite_stats = {}  # Track satellites per caster
 
         self.signals = NTRIPSignals()
         self.signals.status_signal.connect(self.on_status)
@@ -399,6 +457,97 @@ class NTRIPCheckerPro(QWidget):
         # add with stretch so map gets most space in the layout
         self.map_layout.addWidget(self.map_view, 1)
         self.tabs.addTab(self.map_tab, "Map")
+        
+        # Satellites tab
+        self.sat_tab = QWidget()
+        self.sat_layout = QVBoxLayout()
+        self.sat_tab.setLayout(self.sat_layout)
+        
+        # Header with caster selector
+        sat_header = QHBoxLayout()
+        sat_header_label = QLabel("Satellites:")
+        sat_header_label.setStyleSheet("color: #ffffff; font-weight: bold; font-size:16px; margin:8px;")
+        sat_header.addWidget(sat_header_label)
+        
+        self.sat_caster_combo = QComboBox()
+        self.sat_caster_combo.setStyleSheet("color: #e6eef3; min-width:160px; margin-right:8px;")
+        self.sat_caster_combo.addItem("(none)")
+        self.sat_caster_combo.currentTextChanged.connect(self.on_sat_caster_changed)
+        sat_header.addWidget(self.sat_caster_combo)
+        
+        # Add Clear button to reset satellite data
+        sat_clear_btn = QPushButton("Clear Satellite Data")
+        sat_clear_btn.setStyleSheet("background-color: #E41A1C; color: white; padding: 5px 10px; margin-left: 10px;")
+        sat_clear_btn.clicked.connect(self.clear_satellite_data)
+        sat_header.addWidget(sat_clear_btn)
+        
+        # Add debug button to show satellite stats
+        sat_debug_btn = QPushButton("Debug Info")
+        sat_debug_btn.setStyleSheet("background-color: #377EB8; color: white; padding: 5px 10px; margin-left: 5px;")
+        sat_debug_btn.clicked.connect(self.show_satellite_debug)
+        sat_header.addWidget(sat_debug_btn)
+        
+        # Add last update label
+        self.sat_last_update = QLabel("Last update: Never")
+        self.sat_last_update.setStyleSheet("color: #aaaaaa; font-size: 12px; margin-left: 15px;")
+        sat_header.addWidget(self.sat_last_update)
+        
+        sat_header.addStretch()
+        self.sat_layout.addLayout(sat_header)
+        
+        # Donut chart for satellites
+        self.sat_chart_view = QWebEngineView()
+        self.sat_chart_view.setMinimumHeight(350)
+        self.sat_layout.addWidget(self.sat_chart_view)
+        
+        # Grid for constellation details
+        from PyQt6.QtWidgets import QGridLayout, QFrame
+        self.sat_grid = QGridLayout()
+        self.sat_grid.setSpacing(10)
+        
+        # Create constellation cards
+        self.constellation_cards = {}
+        constellations = [
+            ('GPS', '#4DAF4A', 0, 0),
+            ('Galileo', '#377EB8', 0, 1),
+            ('GLONASS', '#E41A1C', 1, 0),
+            ('BeiDou', '#FF7F00', 1, 1),
+            ('QZSS', '#984EA3', 2, 0),
+            ('SBAS', '#FFFF33', 2, 1)
+        ]
+        
+        for name, color, row, col in constellations:
+            card = QFrame()
+            card.setStyleSheet(f"""
+                QFrame {{
+                    background-color: #2d2d2d;
+                    border: 2px solid {color};
+                    border-radius: 8px;
+                    padding: 10px;
+                }}
+            """)
+            card_layout = QVBoxLayout()
+            
+            # Constellation name
+            name_label = QLabel(name)
+            name_label.setStyleSheet(f"color: {color}; font-weight: bold; font-size: 16px;")
+            name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            card_layout.addWidget(name_label)
+            
+            # Satellite count
+            count_label = QLabel("Satellites\n0")
+            count_label.setStyleSheet("color: #ffffff; font-size: 24px; font-weight: bold;")
+            count_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            card_layout.addWidget(count_label)
+            
+            card.setLayout(card_layout)
+            self.sat_grid.addWidget(card, row, col)
+            self.constellation_cards[name] = count_label
+        
+        self.sat_layout.addLayout(self.sat_grid)
+        self.sat_layout.addStretch()
+        
+        self.tabs.addTab(self.sat_tab, "Satellites")
 
     def _insert_caster_row(self, c):
         row = self.caster_list.rowCount()
@@ -510,8 +659,11 @@ class NTRIPCheckerPro(QWidget):
                 # add to map combobox if available
                 if hasattr(self, 'map_caster_combo'):
                     self.map_caster_combo.addItem(c.get("name", ""))
+                # add to satellites combobox if available
+                if hasattr(self, 'sat_caster_combo'):
+                    self.sat_caster_combo.addItem(c.get("name", ""))
             except Exception:
-                logging.debug("Failed adding caster to map combobox", exc_info=True)
+                logging.debug("Failed adding caster to comboboxes", exc_info=True)
 
     def start_connection(self, caster):
         name = caster["name"]
@@ -539,12 +691,14 @@ class NTRIPCheckerPro(QWidget):
             self.start_connection(data)
             # add to messages combobox
             self.msg_caster_combo.addItem(data.get("name", ""))
-            # add to map combobox as well
+            # add to map and satellites comboboxes as well
             try:
                 if hasattr(self, 'map_caster_combo'):
                     self.map_caster_combo.addItem(data.get("name", ""))
+                if hasattr(self, 'sat_caster_combo'):
+                    self.sat_caster_combo.addItem(data.get("name", ""))
             except Exception:
-                logging.debug("Failed to add new caster to map combobox", exc_info=True)
+                logging.debug("Failed to add new caster to comboboxes", exc_info=True)
 
     def remove_caster_by_name(self, name):
         confirm = QMessageBox.question(
@@ -583,14 +737,18 @@ class NTRIPCheckerPro(QWidget):
         idx = self.msg_caster_combo.findText(name)
         if idx >= 0:
             self.msg_caster_combo.removeItem(idx)
-        # remove from map combobox
+        # remove from map and satellites comboboxes
         try:
             if hasattr(self, 'map_caster_combo'):
                 idx2 = self.map_caster_combo.findText(name)
                 if idx2 >= 0:
                     self.map_caster_combo.removeItem(idx2)
+            if hasattr(self, 'sat_caster_combo'):
+                idx3 = self.sat_caster_combo.findText(name)
+                if idx3 >= 0:
+                    self.sat_caster_combo.removeItem(idx3)
         except Exception:
-            logging.debug("Failed removing caster from map combobox", exc_info=True)
+            logging.debug("Failed removing caster from comboboxes", exc_info=True)
 
     # ---------- Cleanup ----------
     def cleanup(self):
@@ -743,7 +901,19 @@ class NTRIPCheckerPro(QWidget):
                 msg_type = getattr(parsed, "identity", None)
                 if not msg_type:
                     continue
+                
+                # Debug logging for MSM7 messages (1127 = BeiDou MSM7)
+                if str(msg_type) in ['1125', '1127']:
+                    if not hasattr(self, '_msm_raw_logged'):
+                        self._msm_raw_logged = set()
+                    if msg_type not in self._msm_raw_logged:
+                        logging.info(f"Raw MSM message type={msg_type} (type: {type(msg_type).__name__}), str(msg_type)={str(msg_type)}, parsed object type: {type(parsed).__name__}")
+                        logging.info(f"Message {msg_type} all attributes: {[a for a in dir(parsed) if not a.startswith('_')]}")
+                        self._msm_raw_logged.add(msg_type)
+                
                 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Update RTCM message stats
                 if caster_name not in self.rtcm_stats:
                     self.rtcm_stats[caster_name] = {}
                 caster_msgs = self.rtcm_stats[caster_name]
@@ -751,6 +921,32 @@ class NTRIPCheckerPro(QWidget):
                     caster_msgs[msg_type] = {"count": 0, "last": now}
                 caster_msgs[msg_type]["count"] += 1
                 caster_msgs[msg_type]["last"] = now
+                
+                # Extract and update satellite info
+                sat_info = extract_satellite_info(parsed)
+                
+                # Debug: log MSM message fields (only first time per message type)
+                if isinstance(msg_type, str) and msg_type.startswith("10"):
+                    msg_num = int(msg_type) if msg_type.isdigit() else 0
+                    if 1121 <= msg_num <= 1127 and not hasattr(self, '_msm_debug_logged'):
+                        self._msm_debug_logged = set()
+                    # Log BeiDou messages in detail
+                    if 1121 <= msg_num <= 1127 and msg_type not in getattr(self, '_msm_debug_logged', set()):
+                        all_fields = {attr: getattr(parsed, attr) for attr in dir(parsed) if not attr.startswith('_') and not callable(getattr(parsed, attr))}
+                        logging.info(f"BeiDou MSM message {msg_type} ALL fields and values: {all_fields}")
+                        logging.info(f"BeiDou MSM message {msg_type} type: {type(parsed)}")
+                        if hasattr(self, '_msm_debug_logged'):
+                            self._msm_debug_logged.add(msg_type)
+                
+                if caster_name not in self.satellite_stats:
+                    self.satellite_stats[caster_name] = {
+                        'GPS': set(), 'GLONASS': set(), 'Galileo': set(),
+                        'BeiDou': set(), 'QZSS': set(), 'SBAS': set()
+                    }
+                # Merge satellite data (union of sets)
+                for constellation, sats in sat_info.items():
+                    if sats:  # Only update if satellites found
+                        self.satellite_stats[caster_name][constellation].update(sats)
             # remove consumed bytes from client's buffer
             consumed = stream.tell()
             if consumed:
@@ -758,6 +954,7 @@ class NTRIPCheckerPro(QWidget):
                     client.buffer = client.buffer[consumed:]
             if caster_name == self.selected_caster:
                 self.update_messages_view()
+                self.update_satellites_view()
         except Exception:
             logging.exception("Error parsing RTCM in on_data for %s", caster_name)
 
@@ -820,6 +1017,15 @@ class NTRIPCheckerPro(QWidget):
                 self.map_caster_combo.blockSignals(False)
         except Exception:
             logging.debug("Failed syncing map combobox on caster select", exc_info=True)
+        try:
+            if hasattr(self, 'sat_caster_combo'):
+                self.sat_caster_combo.blockSignals(True)
+                idx3 = self.sat_caster_combo.findText(self.selected_caster)
+                if idx3 >= 0:
+                    self.sat_caster_combo.setCurrentIndex(idx3)
+                self.sat_caster_combo.blockSignals(False)
+        except Exception:
+            logging.debug("Failed syncing satellites combobox on caster select", exc_info=True)
         self.update_messages_view()
 
     def update_messages_view(self):
@@ -895,6 +1101,164 @@ class NTRIPCheckerPro(QWidget):
         else:
             self.selected_caster = None
             self.map_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>No caster selected.</h3>")
+    
+    # ---------- Satellites Tab ----------
+    def on_sat_caster_changed(self, caster_name):
+        """Called when user changes selection in Satellites combobox"""
+        if caster_name and caster_name != "(none)":
+            self.selected_caster = caster_name
+            self.update_satellites_view()
+        else:
+            self.selected_caster = None
+            self.sat_chart_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>No caster selected.</h3>")
+            # Reset all counts to 0
+            for label in self.constellation_cards.values():
+                label.setText("Satellites\n0")
+    
+    def show_satellite_debug(self):
+        """Show debug information about satellite stats"""
+        debug_info = "Satellite Stats Debug Info:\n\n"
+        
+        if not self.satellite_stats:
+            debug_info += "No satellite data collected yet.\n"
+        else:
+            for caster_name, constellations in self.satellite_stats.items():
+                debug_info += f"Caster: {caster_name}\n"
+                for const_name, sat_set in constellations.items():
+                    if sat_set:
+                        debug_info += f"  {const_name}: {len(sat_set)} satellites - PRNs: {sorted(sat_set)}\n"
+                    else:
+                        debug_info += f"  {const_name}: 0 satellites\n"
+                debug_info += "\n"
+        
+        # Also show RTCM message types received
+        if self.selected_caster and self.selected_caster in self.rtcm_stats:
+            debug_info += f"\nRTCM Messages for {self.selected_caster}:\n"
+            for msg_type in sorted(self.rtcm_stats[self.selected_caster].keys(), key=lambda x: str(x)):
+                count = self.rtcm_stats[self.selected_caster][msg_type]['count']
+                debug_info += f"  {msg_type}: {count} messages\n"
+        
+        # Show debug message data if available
+        if hasattr(self, '_last_beidou_debug'):
+            debug_info += f"\n\nLast BeiDou MSM Debug Data:\n{self._last_beidou_debug}\n"
+        
+        QMessageBox.information(self, "Satellite Debug Info", debug_info)
+        logging.info(debug_info)
+    
+    def clear_satellite_data(self):
+        """Clear all accumulated satellite data and refresh view"""
+        self.satellite_stats.clear()
+        # Reset view
+        self.sat_chart_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>Satellite data cleared. Reconnect to casters to start tracking.</h3>")
+        for label in self.constellation_cards.values():
+            label.setText("Satellites\n0")
+        self.sat_last_update.setText("Last update: Never")
+        logging.info("Satellite data cleared")
+    
+    def update_satellites_view(self):
+        """Update satellite view for selected caster"""
+        if not self.selected_caster or self.selected_caster not in self.satellite_stats:
+            return
+        
+        sat_data = self.satellite_stats[self.selected_caster]
+        
+        # Update last update timestamp
+        now = datetime.now().strftime("%H:%M:%S")
+        self.sat_last_update.setText(f"Last update: {now}")
+        
+        # Update constellation cards
+        total_sats = 0
+        for const_name, count_label in self.constellation_cards.items():
+            count = len(sat_data.get(const_name, set()))
+            count_label.setText(f"Satellites\n{count}")
+            total_sats += count
+        
+        # Generate donut chart
+        chart_html = self.generate_satellite_donut_chart(sat_data, total_sats)
+        self.sat_chart_view.setHtml(chart_html)
+    
+    def generate_satellite_donut_chart(self, sat_data, total):
+        """Generate SVG donut chart for satellites"""
+        if total == 0:
+            return "<h3 style='color:#ffffff;margin:1rem;'>No satellite data available yet.</h3>"
+        
+        # Constellation colors matching the cards
+        colors = {
+            'GPS': '#4DAF4A',
+            'Galileo': '#377EB8',
+            'GLONASS': '#E41A1C',
+            'BeiDou': '#FF7F00',
+            'QZSS': '#984EA3',
+            'SBAS': '#FFFF33'
+        }
+        
+        # Calculate angles for each constellation
+        segments = []
+        start_angle = 0
+        
+        for const_name in ['GPS', 'Galileo', 'GLONASS', 'BeiDou', 'QZSS', 'SBAS']:
+            count = len(sat_data.get(const_name, set()))
+            if count > 0:
+                angle = (count / total) * 360
+                segments.append({
+                    'name': const_name,
+                    'count': count,
+                    'color': colors[const_name],
+                    'start': start_angle,
+                    'angle': angle
+                })
+                start_angle += angle
+        
+        # Generate SVG paths
+        svg_paths = []
+        cx, cy, r_outer, r_inner = 200, 200, 150, 90
+        
+        for seg in segments:
+            start_rad = (seg['start'] - 90) * 3.14159 / 180
+            end_rad = (seg['start'] + seg['angle'] - 90) * 3.14159 / 180
+            
+            x1 = cx + r_outer * __import__('math').cos(start_rad)
+            y1 = cy + r_outer * __import__('math').sin(start_rad)
+            x2 = cx + r_outer * __import__('math').cos(end_rad)
+            y2 = cy + r_outer * __import__('math').sin(end_rad)
+            
+            x3 = cx + r_inner * __import__('math').cos(end_rad)
+            y3 = cy + r_inner * __import__('math').sin(end_rad)
+            x4 = cx + r_inner * __import__('math').cos(start_rad)
+            y4 = cy + r_inner * __import__('math').sin(start_rad)
+            
+            large_arc = 1 if seg['angle'] > 180 else 0
+            
+            path = f"""
+                <path d="M {x1},{y1} A {r_outer},{r_outer} 0 {large_arc},1 {x2},{y2}
+                         L {x3},{y3} A {r_inner},{r_inner} 0 {large_arc},0 {x4},{y4} Z"
+                      fill="{seg['color']}" stroke="#1e1e1e" stroke-width="2"/>
+            """
+            svg_paths.append(path)
+        
+        svg_content = f"""
+        <svg width="400" height="400" viewBox="0 0 400 400">
+            {''.join(svg_paths)}
+            <text x="200" y="190" text-anchor="middle" font-size="32" font-weight="bold" fill="#ffffff">
+                {total}
+            </text>
+            <text x="200" y="220" text-anchor="middle" font-size="16" fill="#cccccc">
+                Total
+            </text>
+        </svg>
+        """
+        
+        return f"""
+        <html>
+        <head>
+            <style>
+                body {{ background-color: #1e1e1e; margin: 0; padding: 20px; 
+                        display: flex; justify-content: center; align-items: center; }}
+            </style>
+        </head>
+        <body>{svg_content}</body>
+        </html>
+        """
 
     def generate_pie_chart_svg(self, caster):
         """Generate SVG donut chart for RTCM message types."""
