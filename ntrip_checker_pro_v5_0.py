@@ -107,17 +107,31 @@ def extract_satellite_info(parsed):
 
 # Color palette for RTCM message types
 def get_color_for_msg_type(msg_type):
-    """Generate a consistent color for an RTCM message type."""
-    # simple hash-based color generation
-    hash_val = hash(str(msg_type)) % 360  # hue 0-360
-    # brighter, saturated palette
+    """Get color for RTCM message type based on constellation (MSM messages color-coded)."""
+    try:
+        msg_num = int(msg_type)
+        # MSM messages: color-code by constellation
+        if 1071 <= msg_num <= 1077:  # GPS
+            return "#4DAF4A"  # Green
+        elif 1081 <= msg_num <= 1087:  # GLONASS
+            return "#E41A1C"  # Red
+        elif 1091 <= msg_num <= 1097:  # Galileo
+            return "#377EB8"  # Blue
+        elif 1101 <= msg_num <= 1107:  # SBAS
+            return "#FFFF33"  # Yellow
+        elif 1111 <= msg_num <= 1117:  # QZSS
+            return "#984EA3"  # Purple
+        elif 1121 <= msg_num <= 1127:  # BeiDou
+            return "#FF7F00"  # Orange
+    except (ValueError, TypeError):
+        pass
+    
+    # Non-MSM messages: use hash-based color
     colors = [
-        "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",
-        "#FFFF33", "#A65628", "#F781BF", "#999999", "#66C2A5",
-        "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F",
-        "#1F78B4", "#B2DF8A", "#33A02C", "#FB9A99", "#CAB2D6"
+        "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", 
+        "#FFD92F", "#B2DF8A", "#FB9A99", "#CAB2D6", "#999999"
     ]
-    return colors[hash(msg_type) % len(colors)]
+    return colors[hash(str(msg_type)) % len(colors)]
 
 CASTERS_FILENAME = "casters.json"
 
@@ -193,10 +207,25 @@ class NTRIPClient(threading.Thread):
                 # Check if this was a user-initiated stop
                 if self.user_stopped:
                     break
+                
+                # Check if this is a socket closure error during shutdown
+                error_msg = str(e).lower()
+                is_shutdown_error = (
+                    "winerror 10038" in error_msg or  # Socket closed on Windows
+                    "bad file descriptor" in error_msg or  # Socket closed on Linux
+                    "not a socket" in error_msg or
+                    self.stop_event.is_set()  # Explicit stop requested
+                )
+                
+                if is_shutdown_error:
+                    # Expected error during shutdown - log as debug only
+                    logging.debug("Socket closed for %s (expected during shutdown)", self.caster.get('name'))
+                    break
+                
+                # Log unexpected errors
                 logging.exception("NTRIPClient error for %s", self.caster.get('name'))
                 
                 # Determine error type for user feedback
-                error_msg = str(e).lower()
                 if "rejected" in error_msg or "401" in error_msg or "unauthorized" in error_msg:
                     error_type = "Authentication failed"
                 elif "timeout" in error_msg or "timed out" in error_msg:
@@ -336,6 +365,8 @@ class NTRIPCheckerPro(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("NTRIP Checker PRO v5.0")
+        # Set fixed size to prevent window jumping when switching tabs
+        self.setMinimumSize(1200, 800)
         self.resize(1200, 800)
 
         self.casters = []
@@ -440,29 +471,54 @@ class NTRIPCheckerPro(QWidget):
         msg_header_layout.addStretch()
         self.msg_layout.addLayout(msg_header_layout)
         self.msg_header = msg_label  # keep reference for compatibility
+        
+        # Horizontal layout for chart and table
+        msg_content_layout = QHBoxLayout()
+        
+        # Left side: Pie chart container
+        chart_container = QWidget()
+        chart_layout = QVBoxLayout()
+        chart_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.msg_chart_view = QWebEngineView()
+        self.msg_chart_view.setMinimumSize(300, 300)
+        self.msg_chart_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        
+        chart_layout.addWidget(self.msg_chart_view)
+        chart_container.setLayout(chart_layout)
+        msg_content_layout.addWidget(chart_container, 1)  # stretch factor 1
+        
+        # Right side: Table container
+        table_container = QWidget()
+        table_layout = QVBoxLayout()
+        table_layout.setContentsMargins(0, 0, 0, 0)
+        
         self.msg_table = QTableWidget()
-               # 3 columns: type, last time, count
+        # 3 columns: type, last time, count
         self.msg_table.setColumnCount(3)
         self.msg_table.setHorizontalHeaderLabels(["RTCM Message", "Last Time Received", "Counter"])
         self.msg_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.msg_table.setStyleSheet("QTableWidget { color: #ffffff; }")
         self.msg_table.setAlternatingRowColors(True)
+        self.msg_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         try:
             self.msg_table.setSelectionBehavior(self.msg_table.SelectionBehavior.SelectRows)
             self.msg_table.setSelectionMode(self.msg_table.SelectionMode.SingleSelection)
         except Exception:
             pass
         self.msg_table.verticalHeader().setVisible(False)
-        self.msg_layout.addWidget(self.msg_table)
+        
+        table_layout.addWidget(self.msg_table)
+        
         self.msg_total_label = QLabel("Total messages: 0")
         self.msg_total_label.setStyleSheet("color: #ffffff;")
-        self.msg_layout.addWidget(self.msg_total_label)
-        self.tabs.addTab(self.msg_tab, "Messages")
+        table_layout.addWidget(self.msg_total_label)
         
-        # pie chart view for messages
-        self.msg_chart_view = QWebEngineView()
-        self.msg_chart_view.setMinimumHeight(350)
-        self.msg_layout.insertWidget(2, self.msg_chart_view)  # insert before table
+        table_container.setLayout(table_layout)
+        msg_content_layout.addWidget(table_container, 1)  # stretch factor 1
+        
+        self.msg_layout.addLayout(msg_content_layout)
+        self.tabs.addTab(self.msg_tab, "Messages")
 
         # Map tab
         self.map_tab = QWidget()
@@ -486,9 +542,10 @@ class NTRIPCheckerPro(QWidget):
         # ensure the map view expands to fill available space
         self.map_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.map_view.setMinimumHeight(320)
+        # Initialize with default message to prevent flash on first load
+        self.map_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>No caster selected.</h3>")
         # add with stretch so map gets most space in the layout
         self.map_layout.addWidget(self.map_view, 1)
-        self.tabs.addTab(self.map_tab, "Map")
         
         # Satellites tab
         self.sat_tab = QWidget()
@@ -527,15 +584,33 @@ class NTRIPCheckerPro(QWidget):
         sat_header.addStretch()
         self.sat_layout.addLayout(sat_header)
         
-        # Donut chart for satellites
-        self.sat_chart_view = QWebEngineView()
-        self.sat_chart_view.setMinimumHeight(350)
-        self.sat_layout.addWidget(self.sat_chart_view)
-        
-        # Grid for constellation details
+        # Horizontal layout for chart and cards
         from PyQt6.QtWidgets import QGridLayout, QFrame
+        content_layout = QHBoxLayout()
+        
+        # Left side: Donut chart container
+        chart_container = QWidget()
+        chart_layout = QVBoxLayout()
+        chart_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.sat_chart_view = QWebEngineView()
+        self.sat_chart_view.setMinimumSize(300, 300)
+        self.sat_chart_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        # Initialize with default message to prevent flash on first load
+        self.sat_chart_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>No caster selected.</h3>")
+        
+        chart_layout.addWidget(self.sat_chart_view)
+        chart_container.setLayout(chart_layout)
+        content_layout.addWidget(chart_container, 1)  # stretch factor 1
+        
+        # Right side: Constellation cards container
+        cards_container = QWidget()
+        cards_layout = QVBoxLayout()
+        cards_layout.setContentsMargins(0, 0, 0, 0)
+        
         self.sat_grid = QGridLayout()
-        self.sat_grid.setSpacing(10)
+        self.sat_grid.setSpacing(20)
+        self.sat_grid.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # Create constellation cards
         self.constellation_cards = {}
@@ -550,25 +625,27 @@ class NTRIPCheckerPro(QWidget):
         
         for name, color, row, col in constellations:
             card = QFrame()
+            card.setMinimumSize(180, 100)
+            card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             card.setStyleSheet(f"""
                 QFrame {{
                     background-color: #2d2d2d;
                     border: 2px solid {color};
                     border-radius: 8px;
-                    padding: 10px;
+                    padding: 8px;
                 }}
             """)
             card_layout = QVBoxLayout()
             
             # Constellation name
             name_label = QLabel(name)
-            name_label.setStyleSheet(f"color: {color}; font-weight: bold; font-size: 16px;")
+            name_label.setStyleSheet(f"color: {color}; font-weight: bold; font-size: 14px;")
             name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             card_layout.addWidget(name_label)
             
             # Satellite count
-            count_label = QLabel("Satellites\n0")
-            count_label.setStyleSheet("color: #ffffff; font-size: 24px; font-weight: bold;")
+            count_label = QLabel("0\nSatellites")
+            count_label.setStyleSheet("color: #ffffff; font-size: 20px; font-weight: bold;")
             count_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             card_layout.addWidget(count_label)
             
@@ -576,10 +653,15 @@ class NTRIPCheckerPro(QWidget):
             self.sat_grid.addWidget(card, row, col)
             self.constellation_cards[name] = count_label
         
-        self.sat_layout.addLayout(self.sat_grid)
-        self.sat_layout.addStretch()
+        cards_layout.addLayout(self.sat_grid)
+        cards_layout.addStretch()
+        cards_container.setLayout(cards_layout)
+        content_layout.addWidget(cards_container, 1)  # stretch factor 1
+        
+        self.sat_layout.addLayout(content_layout)
         
         self.tabs.addTab(self.sat_tab, "Satellites")
+        self.tabs.addTab(self.map_tab, "Map")
 
     def _insert_caster_row(self, c):
         row = self.caster_list.rowCount()
@@ -1091,8 +1173,7 @@ class NTRIPCheckerPro(QWidget):
             total += info["count"]
         self.msg_total_label.setText(f"Total messages: {total}")
         # update pie chart
-        svg = self.generate_pie_chart_svg(caster)
-        html = f"<html><body style='background:#f0f0f0;margin:0;padding:10px;'>{svg}</body></html>"
+        html = self.generate_pie_chart_svg(caster)
         self.msg_chart_view.setHtml(html)
 
     def on_msg_caster_changed(self, caster_name):
@@ -1310,19 +1391,19 @@ class NTRIPCheckerPro(QWidget):
     def generate_pie_chart_svg(self, caster):
         """Generate SVG donut chart for RTCM message types."""
         if not caster or caster not in self.rtcm_stats or not self.rtcm_stats[caster]:
-            return "<svg></svg>"
+            return "<h3 style='color:#ffffff;margin:1rem;'>No message data available yet.</h3>"
         
         import math
         stats = self.rtcm_stats[caster]
         total = sum(info["count"] for info in stats.values())
         if total == 0:
-            return "<svg></svg>"
+            return "<h3 style='color:#ffffff;margin:1rem;'>No message data available yet.</h3>"
         
-        # SVG setup
-        size = 300
+        # SVG setup - match satellite donut chart sizing
+        size = 400
         cx, cy = size / 2, size / 2
-        outer_r = 100
-        inner_r = 60
+        outer_r = 150
+        inner_r = 90
         
         slices = []
         angle_start = -90  # start at top
@@ -1350,21 +1431,33 @@ class NTRIPCheckerPro(QWidget):
                 f"L {x2_inner:.1f} {y2_inner:.1f} "
                 f"A {inner_r} {inner_r} 0 {large_arc} 0 {x1_inner:.1f} {y1_inner:.1f} Z"
             )
-            slices.append(f'<path d="{path}" fill="{color}" stroke="white" stroke-width="2"/>')
+            slices.append(f'<path d="{path}" fill="{color}" stroke="#1e1e1e" stroke-width="2"/>')
             
             angle_start = angle_end
         
-        svg = f"""
+        svg_content = f"""
         <svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" xmlns="http://www.w3.org/2000/svg">
-            <style>
-                text {{ font-family: Arial, sans-serif; font-size: 14px; fill: white; text-anchor: middle; }}
-            </style>
             {''.join(slices)}
-            <text x="{cx:.0f}" y="{cy-10:.0f}" font-weight="bold">Total</text>
-            <text x="{cx:.0f}" y="{cy+15:.0f}" font-size="20px" font-weight="bold">{total}</text>
+            <text x="{cx:.0f}" y="{cy-10:.0f}" text-anchor="middle" font-size="32" font-weight="bold" fill="#ffffff">
+                {total}
+            </text>
+            <text x="{cx:.0f}" y="{cy+20:.0f}" text-anchor="middle" font-size="16" fill="#cccccc">
+                Total
+            </text>
         </svg>
         """
-        return svg
+        
+        return f"""
+        <html>
+        <head>
+            <style>
+                body {{ background-color: #1e1e1e; margin: 0; padding: 20px; 
+                        display: flex; justify-content: center; align-items: center; }}
+            </style>
+        </head>
+        <body>{svg_content}</body>
+        </html>
+        """
 
     # ---------- Utils ----------
     def format_timedelta(self, td: timedelta):
