@@ -5,17 +5,30 @@ All notable changes to NTRIP Checker PRO are documented in this file.
 ## [5.0] — December 2024
 
 ### Added
+- **Satellites Tab** with real-time GNSS constellation tracking
+  - Live satellite counting per constellation (GPS, GLONASS, Galileo, BeiDou, QZSS, SBAS)
+  - Interactive donut chart showing satellite distribution
+  - Color-coded constellation cards matching satellite chart
+  - Clear and Debug functions for troubleshooting
+  - MSM message parsing (1071-1127) with PRN extraction
 - **Map Tab** with interactive Leaflet map and caster location markers
 - **Messages Tab** with RTCM message statistics and pie chart visualization
-- **Station Selector** comboboxes on both Messages and Map tabs with cross-tab synchronization
+- **Station Selector** comboboxes on all tabs (Messages, Map, Satellites) with cross-tab synchronization
 - **Edit Caster** functionality — modify existing caster configurations
 - **Delete Caster** with confirmation dialog
+- **Connect All** button — manually trigger connection to all disconnected casters
+- **User-Controlled Disconnect** — stop reconnection attempts after manual disconnect
 - **Rotating File Logger** — logs up to 5 MB per file, keeps 3 backups
 - **Threading Safety** — per-caster buffer with locks, safe RTCM parsing in main thread
-- **Color-Coded Messages** — bright palette for RTCM message type visualization
+- **MSM Constellation Color-Coding** — Messages tab shows constellation-specific colors for MSM messages (1071-1127)
 - **Enhanced UI** — dark theme, improved typography, better contrast
 
 ### Changed
+- **Tab Layout** — Messages and Satellites tabs now use side-by-side layout (chart left, data right)
+- **Chart Styling** — Unified dark background (#1e1e1e) and consistent sizing (400x400) for all donut charts
+- **Tab Order** — Reordered to: Casters → Messages → Satellites → Map
+- **Error Messages** — More descriptive connection errors (Authentication failed, Connection timeout, etc.)
+- **Color Palette** — Constellation colors unified across Messages MSM display and Satellites cards
 - **Dark Theme** — dark_teal.xml with custom stylesheet overrides for readability
 - **Tab Headers** — larger, bold font (14px, weight 600)
 - **Text Colors** — all text set to light (#ffffff or #e6eef3) for dark background compatibility
@@ -24,8 +37,13 @@ All notable changes to NTRIP Checker PRO are documented in this file.
 - **Reconnection Logic** — replaced `time.sleep()` with `threading.Event.wait()` for responsive stop
 - **Status Messages** — all status strings now in English
 - **RTCM Parsing** — moved from worker thread to GUI thread using per-caster buffer snapshots
+- **BeiDou Parsing** — Fixed to handle MSM messages 1121-1127 (not just "10XX" prefix)
 
 ### Fixed
+- **BeiDou Satellites** — Now correctly parsing MSM messages 1121-1127 (previously showed 0)
+- **Socket Errors on Shutdown** — Suppressed WinError 10038 during graceful shutdown
+- **Window Jumping** — Fixed layout flash when switching to Satellites/Map tabs
+- **PyQt Silent Crashes** — Added custom exception hook to display PyQt errors
 - **IndentationError** in `update_map_view()` method
 - **Color Contrast** — fixed white-on-white popup text (now black on white background)
 - **Tab Visibility** — ensured tab text is visible on dark theme

@@ -6,18 +6,20 @@ A professional GNSS NTRIP client application for monitoring and analyzing NTRIP 
 
 ✅ **Multi-Caster Management** — Add, edit, and remove multiple NTRIP casters  
 ✅ **Real-Time Monitoring** — Live byte rate (B/s) and uptime tracking  
-✅ **RTCM Message Analysis** — Parse and visualize RTCM message types with statistics  
+✅ **Satellite Tracking** — Real-time GNSS constellation monitoring (GPS, GLONASS, Galileo, BeiDou, QZSS, SBAS)  
+✅ **RTCM Message Analysis** — Parse and visualize RTCM message types with constellation-colored MSM messages  
 ✅ **Interactive Mapping** — Leaflet-based map display with caster location markers  
 ✅ **Dark Theme UI** — Modern dark interface with excellent contrast and readability  
 ✅ **Data Persistence** — Caster configurations saved to JSON  
-✅ **Auto-Reconnect** — Automatic reconnection on connection loss (3 retry attempts)  
+✅ **User-Controlled Connections** — Manual connect/disconnect with no auto-reconnect after user stop  
 ✅ **Logging** — Console and rotating file logging for debugging  
 ✅ **Cross-Platform** — Windows, Linux, Raspberry Pi support  
 
 ## Screenshots
 
 - **Casters Tab**: View all connected NTRIP streams with status, data rates, and uptime
-- **Messages Tab**: Real-time RTCM message statistics with interactive pie chart
+- **Messages Tab**: Real-time RTCM message statistics with constellation-colored pie chart
+- **Satellites Tab**: Live satellite constellation tracking with interactive donut chart and color-coded cards
 - **Map Tab**: Geographic visualization of caster locations with detailed popups
 
 ## Requirements

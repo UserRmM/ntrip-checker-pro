@@ -1,4 +1,5 @@
-# ntrip_checker_pro_v5_0_fixed.py
+# NTRIP Checker PRO v5.0
+# A professional GNSS NTRIP client with real-time satellite tracking and RTCM message analysis
 import sys, io, base64, socket, threading, json, os, time, logging
 from logging.handlers import RotatingFileHandler
 from datetime import datetime, timedelta
