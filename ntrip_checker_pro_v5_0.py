@@ -52,9 +52,10 @@ class NTRIPClient(threading.Thread):
         self.stop_event = threading.Event()
         self.lock = threading.Lock()
         self.buffer = bytearray()
+        self.user_stopped = False  # Track if user manually disconnected
 
     def run(self):
-        while self.reconnect_attempts <= 3 and not self.stop_event.is_set():
+        while self.reconnect_attempts <= 3 and not self.stop_event.is_set() and not self.user_stopped:
             try:
                 auth = base64.b64encode(f"{self.caster['user']}:{self.caster['password']}".encode()).decode()
                 request = (
@@ -80,8 +81,17 @@ class NTRIPClient(threading.Thread):
                         data = s.recv(4096)
                     except socket.timeout:
                         continue
+                    except Exception:
+                        # Socket error while reading - check if user stopped
+                        if self.user_stopped:
+                            break
+                        raise  # Re-raise for reconnect logic
                     if not data:
-                        break
+                        # Connection closed - check if user stopped
+                        if self.user_stopped:
+                            break
+                        # Otherwise treat as network error
+                        raise Exception("Connection closed by server")
                     # update counters thread-safely
                     with self.lock:
                         self.total_bytes += len(data)
@@ -92,16 +102,33 @@ class NTRIPClient(threading.Thread):
                 break
 
             except Exception as e:
+                # Check if this was a user-initiated stop
+                if self.user_stopped:
+                    break
                 logging.exception("NTRIPClient error for %s", self.caster.get('name'))
-                self.signals.status_signal.emit(self.caster['name'], f"⚠️ Error: {e}")
+                
+                # Determine error type for user feedback
+                error_msg = str(e).lower()
+                if "rejected" in error_msg or "401" in error_msg or "unauthorized" in error_msg:
+                    error_type = "Authentication failed"
+                elif "timeout" in error_msg or "timed out" in error_msg:
+                    error_type = "Connection timeout"
+                elif "refused" in error_msg:
+                    error_type = "Connection refused"
+                else:
+                    error_type = "Network error"
+                
+                self.signals.status_signal.emit(self.caster['name'], f"⚠️ {error_type}")
                 self.reconnect_attempts += 1
-                if self.reconnect_attempts <= 3:
+                
+                if not self.user_stopped and self.reconnect_attempts <= 3:
                     self.signals.status_signal.emit(self.caster['name'], f"🟡 Reconnecting ({self.reconnect_attempts}/3)...")
                     # wait with event so stop() can interrupt the sleep
                     if self.stop_event.wait(10):
                         break
                 else:
-                    self.signals.status_signal.emit(self.caster['name'], "🔴 Disconnected (automatic reconnect failed)")
+                    if not self.user_stopped:
+                        self.signals.status_signal.emit(self.caster['name'], f"🔴 Disconnected ({error_type})")
                     break
             finally:
                 self.running = False
@@ -112,8 +139,9 @@ class NTRIPClient(threading.Thread):
                     logging.debug("Exception while closing socket", exc_info=True)
         self.signals.disconnect_signal.emit(self.caster['name'])
 
-    def stop(self):
+    def stop(self, user_initiated=False):
         self.running = False
+        self.user_stopped = user_initiated
         self.stop_event.set()
         try:
             if self.socket:
@@ -226,7 +254,7 @@ class NTRIPCheckerPro(QWidget):
         self.clients = {}
         self.start_times = {}
         self.last_bytes = {}
-        self.refresh_counter = 60
+        # Removed auto-refresh counter - user has full control
         self.selected_caster = None
         self.rtcm_stats = {}
 
@@ -297,10 +325,11 @@ class NTRIPCheckerPro(QWidget):
         btn_panel.setLayout(btn_layout)
         self.add_btn = QPushButton("+ Add caster")
         self.add_btn.clicked.connect(self.show_add_dialog)
-        self.refresh_btn = QPushButton("Refresh (60s)")
-        self.refresh_btn.clicked.connect(self.manual_refresh)
+        self.connect_all_btn = QPushButton("Connect All")
+        self.connect_all_btn.clicked.connect(self.connect_all_disconnected)
+        self.connect_all_btn.setToolTip("Connect all disconnected casters")
         btn_layout.addWidget(self.add_btn)
-        btn_layout.addWidget(self.refresh_btn)
+        btn_layout.addWidget(self.connect_all_btn)
         btn_layout.addStretch()
         self.tabs.setCornerWidget(btn_panel, Qt.Corner.TopRightCorner)
 
@@ -578,13 +607,13 @@ class NTRIPCheckerPro(QWidget):
     def manual_toggle_connection(self, name, btn):
         client = self.clients.get(name)
         if client and client.running:
-            client.stop()
+            client.stop(user_initiated=True)  # User manually disconnected
             try:
                 client.join(timeout=2)
             except Exception:
                 logging.debug("Exception joining client on manual toggle", exc_info=True)
             btn.setText("Connect")
-            self.on_status(name, "🔴 Disconnected")
+            self.on_status(name, "🔴 Disconnected (User stopped)")
         else:
             caster = next((c for c in self.casters if c.get("name") == name), None)
             if caster:
@@ -677,7 +706,19 @@ class NTRIPCheckerPro(QWidget):
         for r in range(self.caster_list.rowCount()):
             it = self.caster_list.item(r, 0)
             if it and it.text() == caster_name:
-                self.caster_list.setItem(r, 3, QTableWidgetItem(status_text))
+                status_item = QTableWidgetItem(status_text)
+                
+                # Apply color coding based on status
+                if "✅" in status_text or "Connection OK" in status_text:
+                    status_item.setForeground(QColor(0, 255, 0))  # Green
+                elif "🟡" in status_text or "Reconnecting" in status_text:
+                    status_item.setForeground(QColor(255, 200, 0))  # Yellow/Orange
+                elif "🔴" in status_text or "Disconnected" in status_text:
+                    status_item.setForeground(QColor(255, 100, 100))  # Red
+                elif "⚠️" in status_text or "Error" in status_text:
+                    status_item.setForeground(QColor(255, 150, 0))  # Orange
+                
+                self.caster_list.setItem(r, 3, status_item)
                 break
         if "✅" in status_text:
             self.update_button_state(caster_name, True)
@@ -739,22 +780,23 @@ class NTRIPCheckerPro(QWidget):
                 self.caster_list.setItem(r, 5, QTableWidgetItem(self.format_timedelta(uptime)))
             else:
                 self.caster_list.setItem(r, 5, QTableWidgetItem("-"))
-        self.refresh_counter -= 1
-        if self.refresh_counter <= 0:
-            self.refresh_counter = 60
-            self.refresh_clients()
-        self.refresh_btn.setText(f"Refresh ({self.refresh_counter}s)")
+        # Auto-refresh removed - UI updates every second via update_display()
+        # No automatic reconnection - user has full control
 
-    def refresh_clients(self):
+    def connect_all_disconnected(self):
+        """Manually connect all disconnected casters"""
+        connected_count = 0
         for c in self.casters:
             name = c["name"]
             client = self.clients.get(name)
             if not client or not getattr(client, "running", False):
                 self.start_connection(c)
-
-    def manual_refresh(self):
-        self.refresh_counter = 60
-        self.refresh_clients()
+                connected_count += 1
+        
+        if connected_count > 0:
+            logging.info(f"Connecting {connected_count} disconnected caster(s)")
+        else:
+            logging.info("All casters already connected")
 
     # ---------- Messages ----------
     def on_caster_selected(self, row, _col):
