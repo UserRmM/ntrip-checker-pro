@@ -24,6 +24,7 @@ A professional GNSS NTRIP client application for monitoring and analyzing NTRIP 
 
 - **Python 3.8+**
 - **PyQt6** (GUI framework)
+- **PyQt6-WebEngine** (Interactive map display)
 - **pyrtcm** (RTCM message parsing)
 - **qt-material** (Modern dark theme)
 
@@ -34,7 +35,11 @@ See `requirements.txt` for full dependency list.
 ### Windows
 
 1. Install Python 3.9+ from [python.org](https://www.python.org/)
-2. Clone or download this repository
+2. Clone the repository:
+   ```bash
+   git clone https://github.com/UserRmM/ntrip-checker-pro.git
+   cd ntrip-checker-pro
+   ```
 3. Install dependencies:
    ```bash
    pip install -r requirements.txt
@@ -145,7 +150,7 @@ Contributions welcome! Please:
 
 ## Support
 
-For issues, questions, or suggestions, please open a [GitHub Issue](https://github.com/YOUR_USERNAME/ntrip-checker-pro/issues).
+For issues, questions, or suggestions, please open a [GitHub Issue](https://github.com/UserRmM/ntrip-checker-pro/issues).
 
 ## Changelog
 
