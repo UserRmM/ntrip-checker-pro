@@ -1,4 +1,4 @@
-# NTRIP Checker PRO v5.0
+# NTRIP Checker PRO v5.1
 # A professional GNSS NTRIP client with real-time satellite tracking and RTCM message analysis
 import sys, io, base64, socket, threading, json, os, time, logging
 from logging.handlers import RotatingFileHandler
@@ -663,6 +663,115 @@ class NTRIPCheckerPro(QWidget):
         
         self.tabs.addTab(self.sat_tab, "Satellites")
         self.tabs.addTab(self.map_tab, "Map")
+        
+        # Sourcetable tab
+        self.sourcetable_tab = QWidget()
+        self.sourcetable_layout = QVBoxLayout()
+        self.sourcetable_tab.setLayout(self.sourcetable_layout)
+        
+        # Header with caster input fields
+        st_header = QHBoxLayout()
+        st_header_label = QLabel("Sourcetable Browser:")
+        st_header_label.setStyleSheet("color: #ffffff; font-weight: bold; font-size:16px; margin:8px;")
+        st_header.addWidget(st_header_label)
+        st_header.addStretch()
+        self.sourcetable_layout.addLayout(st_header)
+        
+        # Caster input row
+        st_input_row = QHBoxLayout()
+        
+        st_host_label = QLabel("Host:")
+        st_host_label.setStyleSheet("color: #ffffff; margin-left: 8px;")
+        self.st_host_edit = QLineEdit()
+        self.st_host_edit.setStyleSheet("color: #ffffff;")
+        self.st_host_edit.setPlaceholderText("e.g., rtk.example.com")
+        
+        st_port_label = QLabel("Port:")
+        st_port_label.setStyleSheet("color: #ffffff; margin-left: 8px;")
+        self.st_port_spin = QSpinBox()
+        self.st_port_spin.setRange(1, 65535)
+        self.st_port_spin.setValue(2101)
+        self.st_port_spin.setStyleSheet("color: #ffffff;")
+        
+        st_user_label = QLabel("User:")
+        st_user_label.setStyleSheet("color: #ffffff; margin-left: 8px;")
+        self.st_user_edit = QLineEdit()
+        self.st_user_edit.setStyleSheet("color: #ffffff;")
+        
+        st_pass_label = QLabel("Pass:")
+        st_pass_label.setStyleSheet("color: #ffffff; margin-left: 8px;")
+        self.st_pass_edit = QLineEdit()
+        self.st_pass_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.st_pass_edit.setStyleSheet("color: #ffffff;")
+        
+        self.st_fetch_btn = QPushButton("Fetch Mountpoints")
+        self.st_fetch_btn.setStyleSheet("background-color: #4DAF4A; color: white; padding: 5px 15px; font-weight: bold;")
+        self.st_fetch_btn.clicked.connect(self.fetch_sourcetable)
+        
+        st_input_row.addWidget(st_host_label)
+        st_input_row.addWidget(self.st_host_edit)
+        st_input_row.addWidget(st_port_label)
+        st_input_row.addWidget(self.st_port_spin)
+        st_input_row.addWidget(st_user_label)
+        st_input_row.addWidget(self.st_user_edit)
+        st_input_row.addWidget(st_pass_label)
+        st_input_row.addWidget(self.st_pass_edit)
+        st_input_row.addWidget(self.st_fetch_btn)
+        st_input_row.addStretch()
+        
+        self.sourcetable_layout.addLayout(st_input_row)
+        
+        # Search and filter row
+        st_filter_row = QHBoxLayout()
+        
+        st_search_label = QLabel("Search:")
+        st_search_label.setStyleSheet("color: #ffffff; margin-left: 8px;")
+        self.st_search_edit = QLineEdit()
+        self.st_search_edit.setStyleSheet("color: #ffffff;")
+        self.st_search_edit.setPlaceholderText("Filter mountpoints...")
+        self.st_search_edit.textChanged.connect(self.filter_sourcetable)
+        
+        st_filter_row.addWidget(st_search_label)
+        st_filter_row.addWidget(self.st_search_edit)
+        st_filter_row.addStretch()
+        
+        self.sourcetable_layout.addLayout(st_filter_row)
+        
+        # Mountpoints table
+        self.st_table = QTableWidget()
+        self.st_table.setColumnCount(6)
+        self.st_table.setHorizontalHeaderLabels(["Mountpoint", "Description", "Format", "Location", "Systems", "Carrier"])
+        self.st_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.st_table.setStyleSheet("QTableWidget { color: #ffffff; }")
+        self.st_table.setAlternatingRowColors(True)
+        self.st_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.st_table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        self.st_table.verticalHeader().setVisible(False)
+        self.st_table.setSortingEnabled(True)
+        
+        self.sourcetable_layout.addWidget(self.st_table)
+        
+        # Bottom row with selection info and Add button
+        st_bottom_row = QHBoxLayout()
+        
+        self.st_selection_label = QLabel("Selected: None")
+        self.st_selection_label.setStyleSheet("color: #ffffff; font-size: 12px; margin: 8px;")
+        
+        self.st_add_btn = QPushButton("Add Selected to Casters")
+        self.st_add_btn.setStyleSheet("background-color: #377EB8; color: white; padding: 8px 20px; font-weight: bold;")
+        self.st_add_btn.setEnabled(False)
+        self.st_add_btn.clicked.connect(self.add_selected_mountpoints)
+        
+        st_bottom_row.addWidget(self.st_selection_label)
+        st_bottom_row.addStretch()
+        st_bottom_row.addWidget(self.st_add_btn)
+        
+        self.sourcetable_layout.addLayout(st_bottom_row)
+        
+        # Connect selection changed signal
+        self.st_table.itemSelectionChanged.connect(self.update_sourcetable_selection)
+        
+        self.tabs.addTab(self.sourcetable_tab, "Sourcetable")
 
     def _insert_caster_row(self, c):
         row = self.caster_list.rowCount()
@@ -1460,10 +1569,333 @@ class NTRIPCheckerPro(QWidget):
         </html>
         """
 
+    # ---------- Sourcetable Tab ----------
+    def fetch_sourcetable(self):
+        """Fetch mountpoints from NTRIP caster"""
+        host = self.st_host_edit.text().strip()
+        port = self.st_port_spin.value()
+        user = self.st_user_edit.text().strip()
+        password = self.st_pass_edit.text().strip()
+        
+        if not host:
+            QMessageBox.warning(self, "Input Required", "Please enter a host address")
+            return
+        
+        # Disable fetch button during operation
+        self.st_fetch_btn.setEnabled(False)
+        self.st_fetch_btn.setText("Fetching...")
+        
+        # Create worker thread
+        worker = SourcetableFetchWorker(host, port, user, password)
+        worker.finished.connect(self.on_sourcetable_fetched)
+        worker.error.connect(self.on_sourcetable_error)
+        worker.start()
+        
+        # Store worker reference to prevent garbage collection
+        self._sourcetable_worker = worker
+    
+    def on_sourcetable_fetched(self, mountpoints):
+        """Handle successful sourcetable fetch"""
+        self.st_fetch_btn.setEnabled(True)
+        self.st_fetch_btn.setText("Fetch Mountpoints")
+        
+        # Clear existing table
+        self.st_table.setRowCount(0)
+        self.st_table.setSortingEnabled(False)
+        
+        # Populate table
+        for mp in mountpoints:
+            row = self.st_table.rowCount()
+            self.st_table.insertRow(row)
+            
+            self.st_table.setItem(row, 0, QTableWidgetItem(mp.get('mount', '')))
+            self.st_table.setItem(row, 1, QTableWidgetItem(mp.get('name', '')))
+            self.st_table.setItem(row, 2, QTableWidgetItem(mp.get('format', '')))
+            
+            # Location
+            lat = mp.get('lat')
+            lon = mp.get('lon')
+            if lat is not None and lon is not None:
+                loc_text = f"{lat:.4f}, {lon:.4f}"
+            else:
+                loc_text = "Unknown"
+            self.st_table.setItem(row, 3, QTableWidgetItem(loc_text))
+            
+            self.st_table.setItem(row, 4, QTableWidgetItem(mp.get('nav_systems', '')))
+            self.st_table.setItem(row, 5, QTableWidgetItem(mp.get('carrier', '')))
+            
+            # Store full data in row
+            self.st_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, mp)
+        
+        self.st_table.setSortingEnabled(True)
+        
+        logging.info(f"Loaded {len(mountpoints)} mountpoints from sourcetable")
+    
+    def on_sourcetable_error(self, error_msg):
+        """Handle sourcetable fetch error"""
+        self.st_fetch_btn.setEnabled(True)
+        self.st_fetch_btn.setText("Fetch Mountpoints")
+        
+        QMessageBox.critical(self, "Fetch Error", f"Failed to fetch sourcetable:\n\n{error_msg}")
+        logging.error(f"Sourcetable fetch error: {error_msg}")
+    
+    def filter_sourcetable(self):
+        """Filter sourcetable rows based on search text"""
+        search_text = self.st_search_edit.text().lower()
+        
+        for row in range(self.st_table.rowCount()):
+            match = False
+            for col in range(self.st_table.columnCount()):
+                item = self.st_table.item(row, col)
+                if item and search_text in item.text().lower():
+                    match = True
+                    break
+            
+            self.st_table.setRowHidden(row, not match)
+    
+    def update_sourcetable_selection(self):
+        """Update selection label when table selection changes"""
+        selected = self.st_table.selectedItems()
+        if not selected:
+            self.st_selection_label.setText("Selected: None")
+            self.st_add_btn.setEnabled(False)
+            return
+        
+        # Count unique rows
+        selected_rows = set()
+        for item in selected:
+            selected_rows.add(item.row())
+        
+        count = len(selected_rows)
+        if count == 1:
+            # Show details for single selection
+            row = list(selected_rows)[0]
+            mount_item = self.st_table.item(row, 0)
+            name_item = self.st_table.item(row, 1)
+            if mount_item and name_item:
+                self.st_selection_label.setText(f"Selected: {mount_item.text()} - {name_item.text()}")
+        else:
+            self.st_selection_label.setText(f"Selected: {count} mountpoints")
+        
+        self.st_add_btn.setEnabled(True)
+    
+    def add_selected_mountpoints(self):
+        """Add selected mountpoints to Casters tab"""
+        selected = self.st_table.selectedItems()
+        if not selected:
+            return
+        
+        # Get unique selected rows
+        selected_rows = set()
+        for item in selected:
+            selected_rows.add(item.row())
+        
+        host = self.st_host_edit.text().strip()
+        port = self.st_port_spin.value()
+        user = self.st_user_edit.text().strip()
+        password = self.st_pass_edit.text().strip()
+        
+        added_count = 0
+        for row in selected_rows:
+            mount_item = self.st_table.item(row, 0)
+            if not mount_item:
+                continue
+            
+            # Get stored data
+            mp_data = mount_item.data(Qt.ItemDataRole.UserRole)
+            if not mp_data:
+                continue
+            
+            # Create caster entry
+            caster_name = f"{host}_{mp_data.get('mount', '')}"
+            
+            # Check if already exists
+            if any(c.get('name') == caster_name for c in self.casters):
+                logging.info(f"Caster {caster_name} already exists, skipping")
+                continue
+            
+            caster_data = {
+                'name': caster_name,
+                'host': host,
+                'port': port,
+                'mount': mp_data.get('mount', ''),
+                'user': user,
+                'password': password,
+                'lat': mp_data.get('lat'),
+                'lon': mp_data.get('lon'),
+                'alt': mp_data.get('alt')
+            }
+            
+            self.casters.append(caster_data)
+            self._insert_caster_row(caster_data)
+            added_count += 1
+        
+        # Save casters
+        if added_count > 0:
+            try:
+                with open(CASTERS_FILENAME, "w", encoding="utf-8") as f:
+                    json.dump(self.casters, f, indent=2, ensure_ascii=False)
+                
+                # Add to comboboxes
+                for row in selected_rows:
+                    mount_item = self.st_table.item(row, 0)
+                    if mount_item:
+                        mp_data = mount_item.data(Qt.ItemDataRole.UserRole)
+                        if mp_data:
+                            caster_name = f"{host}_{mp_data.get('mount', '')}"
+                            self.msg_caster_combo.addItem(caster_name)
+                            if hasattr(self, 'map_caster_combo'):
+                                self.map_caster_combo.addItem(caster_name)
+                            if hasattr(self, 'sat_caster_combo'):
+                                self.sat_caster_combo.addItem(caster_name)
+                
+                QMessageBox.information(self, "Success", 
+                    f"Added {added_count} mountpoint{'s' if added_count != 1 else ''} to Casters")
+                logging.info(f"Added {added_count} mountpoints from sourcetable")
+                
+                # Switch to Casters tab to show new entries
+                self.tabs.setCurrentIndex(0)
+            except Exception as e:
+                QMessageBox.critical(self, "Save Error", f"Failed to save casters:\n\n{e}")
+                logging.exception("Failed to save casters after adding from sourcetable")
+
     # ---------- Utils ----------
     def format_timedelta(self, td: timedelta):
         s = int(td.total_seconds())
         return f"{s // 3600:02}:{(s % 3600) // 60:02}:{s % 60:02}"
+
+# ---------- Sourcetable Fetch Worker ----------
+class SourcetableFetchWorker(threading.Thread):
+    """Worker thread for fetching NTRIP sourcetable"""
+    
+    def __init__(self, host, port, user, password):
+        super().__init__(daemon=True)
+        self.host = host
+        self.port = port
+        self.user = user
+        self.password = password
+        self.finished = None
+        self.error = None
+        
+    def run(self):
+        try:
+            mountpoints = self.fetch_sourcetable()
+            if self.finished:
+                self.finished.emit(mountpoints)
+        except Exception as e:
+            if self.error:
+                self.error.emit(str(e))
+    
+    def fetch_sourcetable(self):
+        """Fetch and parse NTRIP sourcetable"""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(10)
+        
+        try:
+            sock.connect((self.host, self.port))
+            
+            # Build HTTP request
+            auth_string = base64.b64encode(f"{self.user}:{self.password}".encode()).decode()
+            request = (
+                f"GET / HTTP/1.0\r\n"
+                f"User-Agent: NTRIP NtripCheckerPRO/5.0\r\n"
+                f"Authorization: Basic {auth_string}\r\n"
+                f"\r\n"
+            )
+            
+            sock.sendall(request.encode())
+            
+            # Read response
+            response = b""
+            while True:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                response += chunk
+                if len(response) > 1024 * 1024:  # 1MB limit
+                    raise Exception("Sourcetable too large")
+            
+            sock.close()
+            
+            # Decode response
+            response_text = response.decode('utf-8', errors='ignore')
+            
+            # Check for HTTP errors
+            if 'HTTP/' in response_text[:20]:
+                status_line = response_text.split('\r\n')[0]
+                if '401' in status_line:
+                    raise Exception("Authentication failed - check credentials")
+                elif '200' not in status_line:
+                    raise Exception(f"HTTP error: {status_line}")
+            
+            # Parse sourcetable
+            return self.parse_sourcetable(response_text)
+            
+        except socket.timeout:
+            raise Exception("Connection timeout - check host and port")
+        except socket.gaierror:
+            raise Exception("Could not resolve hostname")
+        except ConnectionRefusedError:
+            raise Exception("Connection refused - check host and port")
+        except Exception as e:
+            raise Exception(str(e))
+        finally:
+            try:
+                sock.close()
+            except:
+                pass
+    
+    def parse_sourcetable(self, data):
+        """Parse NTRIP sourcetable STR entries"""
+        mountpoints = []
+        
+        for line in data.split('\n'):
+            line = line.strip()
+            if not line.startswith('STR;'):
+                continue
+            
+            parts = line.split(';')
+            if len(parts) < 11:
+                continue
+            
+            try:
+                mp = {
+                    'mount': parts[1],
+                    'name': parts[2],
+                    'format': parts[3],
+                    'carrier': parts[5] if len(parts) > 5 else '',
+                    'nav_systems': parts[6] if len(parts) > 6 else '',
+                    'lat': float(parts[9]) if parts[9] and parts[9] != '0' else None,
+                    'lon': float(parts[10]) if parts[10] and parts[10] != '0' else None,
+                    'alt': None  # Not commonly provided in sourcetable
+                }
+                mountpoints.append(mp)
+            except (ValueError, IndexError):
+                logging.debug(f"Failed to parse sourcetable line: {line}")
+                continue
+        
+        return mountpoints
+
+# Make worker signals work with Qt
+from PyQt6.QtCore import QObject, pyqtSignal as Signal
+
+class SourcetableSignals(QObject):
+    finished = Signal(list)
+    error = Signal(str)
+
+# Update worker to use Qt signals
+SourcetableFetchWorker.finished = property(lambda self: self._signals.finished if hasattr(self, '_signals') else None)
+SourcetableFetchWorker.error = property(lambda self: self._signals.error if hasattr(self, '_signals') else None)
+
+def _worker_init_original(self, host, port, user, password):
+    threading.Thread.__init__(self, daemon=True)
+    self.host = host
+    self.port = port
+    self.user = user
+    self.password = password
+    self._signals = SourcetableSignals()
+
+SourcetableFetchWorker.__init__ = _worker_init_original
 
 # ---------- Run ----------
 if __name__ == "__main__":

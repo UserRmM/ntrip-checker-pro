@@ -1,10 +1,11 @@
-# NTRIP Checker PRO v5.0
+# NTRIP Checker PRO v5.1
 
-A professional GNSS NTRIP client application for monitoring and analyzing NTRIP caster streams. Built with PyQt6, provides real-time data visualization, RTCM message statistics, and interactive mapping.
+A professional GNSS NTRIP client application for monitoring and analyzing NTRIP caster streams. Built with PyQt6, provides real-time data visualization, RTCM message statistics, interactive mapping, and automatic mountpoint discovery from NTRIP casters.
 
 ## Features
 
 ✅ **Multi-Caster Management** — Add, edit, and remove multiple NTRIP casters  
+✅ **Sourcetable Browser** — Automatically discover and add mountpoints from any NTRIP caster  
 ✅ **Real-Time Monitoring** — Live byte rate (B/s) and uptime tracking  
 ✅ **Satellite Tracking** — Real-time GNSS constellation monitoring (GPS, GLONASS, Galileo, BeiDou, QZSS, SBAS)  
 ✅ **RTCM Message Analysis** — Parse and visualize RTCM message types with constellation-colored MSM messages  
@@ -21,6 +22,7 @@ A professional GNSS NTRIP client application for monitoring and analyzing NTRIP 
 - **Messages Tab**: Real-time RTCM message statistics with constellation-colored pie chart
 - **Satellites Tab**: Live satellite constellation tracking with interactive donut chart and color-coded cards
 - **Map Tab**: Geographic visualization of caster locations with detailed popups
+- **Sourcetable Tab**: Browse and automatically add mountpoints from NTRIP casters with location data
 
 ## Requirements
 
@@ -48,7 +50,7 @@ See `requirements.txt` for full dependency list.
    ```
 4. Run the application:
    ```bash
-   python ntrip_checker_pro_v5_0.py
+   python ntrip_checker_pro_v5_1.py
    ```
 
 Or use the provided desktop shortcut (see INSTALL.md).
@@ -60,17 +62,30 @@ See [INSTALL.md](INSTALL.md) for detailed setup instructions.
 ## Quick Start
 
 1. **Launch** the application
-2. **Add a Caster**:
+2. **Add a Caster** (two methods):
+   
+   **Method A: Manual Entry**
    - Click "+ Add caster"
    - Enter NTRIP server details (Host, Port, Mountpoint, Username, Password)
    - Optionally add Location (Lat/Lon/Alt) for map display
    - Click "Save"
+   
+   **Method B: Sourcetable Browser** (Recommended)
+   - Go to the **Sourcetable** tab
+   - Enter caster host, port, and credentials
+   - Click "Fetch Mountpoints"
+   - Browse available mountpoints with locations
+   - Select one or more mountpoints
+   - Click "Add Selected to Casters"
+   - Coordinates are automatically added from sourcetable
+
 3. **Monitor**:
    - View live connection status and data rates on the **Casters** tab
    - Switch to **Messages** tab to see RTCM message statistics
+   - Use the **Satellites** tab to track GNSS constellations
    - Use the **Map** tab to visualize caster locations
 4. **Sync Selection**:
-   - Select a caster in **Messages** tab — the **Map** tab auto-syncs to show that caster's location
+   - Select a caster in **Messages** tab — the **Map** and **Satellites** tabs auto-sync
 
 ## Configuration
 
