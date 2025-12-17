@@ -2,6 +2,30 @@
 
 All notable changes to NTRIP Checker PRO are documented in this file.
 
+## [5.1] — December 2024
+
+### Added
+- **Sourcetable Browser Tab** — Automatically fetch mountpoint lists from NTRIP casters
+  - Direct HTTP connection to caster sourcetable (GET / request)
+  - Parse and display all available mountpoints with details
+  - Table columns: Mountpoint, Description, Format, Location (Lat/Lon), Systems, Carrier
+  - Real-time search/filter functionality across all fields
+  - Multi-select mountpoints and add to Casters with one click
+  - Automatic coordinate extraction from STR lines
+  - Auto-generated caster names (host_mountpoint format)
+  - Duplicate prevention when adding mountpoints
+  - Threading for non-blocking fetch operations
+  - Comprehensive error handling (auth failures, timeouts, connection errors)
+  - Automatically adds mountpoints to all tab comboboxes (Messages, Map, Satellites)
+  - Switches to Casters tab after successful addition
+
+### Changed
+- **Tab Order** — Added Sourcetable as 5th tab: Casters → Messages → Satellites → Map → Sourcetable
+- **Caster Addition** — Now possible to add mountpoints from sourcetable in addition to manual entry
+
+### Fixed
+- **Sourcetable Parsing** — Robust STR line parsing with error tolerance for malformed entries
+
 ## [5.0] — December 2024
 
 ### Added
