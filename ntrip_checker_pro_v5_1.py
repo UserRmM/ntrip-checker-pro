@@ -16,7 +16,20 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtGui import QColor
 from qt_material import apply_stylesheet
 
-CASTERS_FILENAME = "casters.json"
+def get_casters_file_path():
+    """Get path to casters.json file. Checks environment variable first, then uses default."""
+    env_path = os.environ.get('NTRIP_CASTERS_PATH')
+    if env_path:
+        print(f"INFO: Using casters file from environment variable: {env_path}")
+        return env_path
+    
+    # Default: casters.json in script directory
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    default_path = os.path.join(script_dir, "casters.json")
+    print(f"INFO: Using default casters file: {default_path}")
+    return default_path
+
+CASTERS_FILENAME = get_casters_file_path()
 
 # Satellite data extraction
 def extract_satellite_info(parsed):
@@ -392,9 +405,8 @@ class NTRIPCheckerPro(QWidget):
 
     # ---------- Load ----------
     def get_casters_path(self):
-        """Get absolute path to casters.json in script directory"""
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(script_dir, CASTERS_FILENAME)
+        """Get absolute path to casters.json (from environment or script directory)"""
+        return CASTERS_FILENAME
     
     def load_casters(self):
         casters_path = self.get_casters_path()

@@ -109,6 +109,32 @@ All casters are saved in `casters.json` in the application directory:
 ]
 ```
 
+#### Custom Casters File Location (Optional)
+
+You can override the default `casters.json` location using the `NTRIP_CASTERS_PATH` environment variable:
+
+**Windows (PowerShell - Permanent):**
+```powershell
+[System.Environment]::SetEnvironmentVariable('NTRIP_CASTERS_PATH', 'D:\Path\To\Your\casters.json', 'User')
+```
+
+**Windows (PowerShell - Temporary):**
+```powershell
+$env:NTRIP_CASTERS_PATH = "D:\Path\To\Your\casters.json"
+python ntrip_checker_pro_v5_1.py
+```
+
+**Linux/Mac:**
+```bash
+export NTRIP_CASTERS_PATH="/path/to/your/casters.json"
+python ntrip_checker_pro_v5_1.py
+```
+
+**Use Cases:**
+- Keep personal caster configurations separate from the repository
+- Share casters between multiple installations
+- Use different configurations for testing vs production
+
 ### Logging
 
 Logs are written to:
