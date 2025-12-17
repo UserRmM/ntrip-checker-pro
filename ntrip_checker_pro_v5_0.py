@@ -391,15 +391,23 @@ class NTRIPCheckerPro(QWidget):
         self.auto_connect_all()
 
     # ---------- Load ----------
+    def get_casters_path(self):
+        """Get absolute path to casters.json in script directory"""
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(script_dir, CASTERS_FILENAME)
+    
     def load_casters(self):
-        if not os.path.exists(CASTERS_FILENAME):
-            with open(CASTERS_FILENAME, "w", encoding="utf-8") as f:
+        casters_path = self.get_casters_path()
+        
+        if not os.path.exists(casters_path):
+            with open(casters_path, "w", encoding="utf-8") as f:
                 json.dump([], f)
         try:
-            with open(CASTERS_FILENAME, "r", encoding="utf-8") as f:
+            with open(casters_path, "r", encoding="utf-8") as f:
                 self.casters = json.load(f)
+            logging.info(f"Loaded casters from: {casters_path}")
         except Exception:
-            logging.exception("Failed loading casters.json")
+            logging.exception(f"Failed loading casters.json from: {casters_path}")
             self.casters = []
 
     # ---------- UI ----------
@@ -800,7 +808,7 @@ class NTRIPCheckerPro(QWidget):
             if not data["name"] or not data["host"] or not data["mount"]:
                 return
             self.casters.append(data)
-            with open(CASTERS_FILENAME, "w", encoding="utf-8") as f:
+            with open(self.get_casters_path(), "w", encoding="utf-8") as f:
                 json.dump(self.casters, f, indent=2, ensure_ascii=False)
             self._insert_caster_row(data)
             self.start_connection(data)
@@ -831,7 +839,7 @@ class NTRIPCheckerPro(QWidget):
             except Exception:
                 logging.debug("Exception joining client on remove", exc_info=True)
         self.casters = [c for c in self.casters if c.get("name") != name]
-        with open(CASTERS_FILENAME, "w", encoding="utf-8") as f:
+        with open(self.get_casters_path(), "w", encoding="utf-8") as f:
             json.dump(self.casters, f, indent=2, ensure_ascii=False)
         for r in range(self.caster_list.rowCount()):
             if self.caster_list.item(r, 0).text() == name:
@@ -914,7 +922,7 @@ class NTRIPCheckerPro(QWidget):
                     self.casters[i] = newdata
                     break
             try:
-                with open(CASTERS_FILENAME, "w", encoding="utf-8") as f:
+                with open(self.get_casters_path(), "w", encoding="utf-8") as f:
                     json.dump(self.casters, f, indent=2, ensure_ascii=False)
             except Exception:
                 logging.exception("Failed to write casters.json after edit")
