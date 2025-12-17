@@ -19,7 +19,7 @@ CASTERS_FILENAME = "casters.json"
 
 # Satellite data extraction
 def extract_satellite_info(parsed):
-    """Extract satellite information from RTCM message."""
+    """Extract satellite and signal information from RTCM message."""
     satellites = {
         'GPS': set(),
         'GLONASS': set(),
@@ -29,9 +29,28 @@ def extract_satellite_info(parsed):
         'SBAS': set()
     }
     
+    signals = {
+        'GPS': set(),
+        'GLONASS': set(),
+        'Galileo': set(),
+        'BeiDou': set(),
+        'QZSS': set(),
+        'SBAS': set()
+    }
+    
+    # Signal ID to frequency name mapping per constellation
+    signal_map = {
+        'GPS': {1: 'L1 C/A', 2: 'L1 P(Y)', 3: 'L1 M', 4: 'L2 P(Y)', 5: 'L2 C', 6: 'L2 M', 7: 'L5 I', 8: 'L5 Q'},
+        'GLONASS': {1: 'G1 C/A', 2: 'G1 P', 3: 'G2 C/A', 4: 'G2 P', 5: 'G3 I', 6: 'G3 Q'},
+        'Galileo': {1: 'E1 C', 2: 'E1 A', 3: 'E1 B', 4: 'E5a I', 5: 'E5a Q', 6: 'E5b I', 7: 'E5b Q', 8: 'E6 C'},
+        'BeiDou': {1: 'B1 I', 2: 'B1 Q', 3: 'B2 I', 4: 'B2 Q', 5: 'B3 I', 6: 'B3 Q'},
+        'QZSS': {1: 'L1 C/A', 2: 'L1 S', 4: 'L2 C', 5: 'L2 L', 7: 'L5 I', 8: 'L5 Q', 9: 'L6 I', 10: 'L6 Q'},
+        'SBAS': {1: 'L1 C/A', 7: 'L5 I', 8: 'L5 Q'}
+    }
+    
     msg_type = getattr(parsed, "identity", "")
     
-    # MSM messages (1071-1127) contain satellite info
+    # MSM messages (1071-1127) contain satellite and signal info
     # Handle both string and int types
     msg_type_str = str(msg_type)
     try:
@@ -61,6 +80,18 @@ def extract_satellite_info(parsed):
                             if isinstance(prn, int) and prn > 0:
                                 satellites[constellation].add(prn)
                 
+                # Extract signal information
+                nsig = getattr(parsed, 'NSig', 0)
+                if nsig > 0 and constellation in signal_map:
+                    # Try to get signal mask or individual signal IDs
+                    sig_mask = getattr(parsed, 'DF395', None)
+                    if sig_mask and isinstance(sig_mask, int):
+                        # Parse signal mask to get signal IDs
+                        for sig_id in range(1, 33):  # Up to 32 signals
+                            if sig_mask & (1 << (sig_id - 1)):
+                                sig_name = signal_map[constellation].get(sig_id, f'Signal {sig_id}')
+                                signals[constellation].add(sig_name)
+                
                 # If no PRN fields found, try bit mask method
                 if not satellites[constellation]:
                     sat_mask = getattr(parsed, 'DF394', None)
@@ -72,7 +103,7 @@ def extract_satellite_info(parsed):
     except (ValueError, AttributeError) as e:
         logging.debug(f"Error extracting satellite info: {e}")
     
-    return satellites
+    return satellites, signals
 
 # Color palette for RTCM message types
 def get_color_for_msg_type(msg_type):
@@ -315,6 +346,7 @@ class NTRIPCheckerPro(QWidget):
         self.selected_caster = None
         self.rtcm_stats = {}
         self.satellite_stats = {}  # Track satellites per caster
+        self.signal_stats = {}  # Track signals/frequencies per caster
 
         self.signals = NTRIPSignals()
         self.signals.status_signal.connect(self.on_status)
@@ -902,15 +934,6 @@ class NTRIPCheckerPro(QWidget):
                 if not msg_type:
                     continue
                 
-                # Debug logging for MSM7 messages (1127 = BeiDou MSM7)
-                if str(msg_type) in ['1125', '1127']:
-                    if not hasattr(self, '_msm_raw_logged'):
-                        self._msm_raw_logged = set()
-                    if msg_type not in self._msm_raw_logged:
-                        logging.info(f"Raw MSM message type={msg_type} (type: {type(msg_type).__name__}), str(msg_type)={str(msg_type)}, parsed object type: {type(parsed).__name__}")
-                        logging.info(f"Message {msg_type} all attributes: {[a for a in dir(parsed) if not a.startswith('_')]}")
-                        self._msm_raw_logged.add(msg_type)
-                
                 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 
                 # Update RTCM message stats
@@ -922,31 +945,26 @@ class NTRIPCheckerPro(QWidget):
                 caster_msgs[msg_type]["count"] += 1
                 caster_msgs[msg_type]["last"] = now
                 
-                # Extract and update satellite info
-                sat_info = extract_satellite_info(parsed)
-                
-                # Debug: log MSM message fields (only first time per message type)
-                if isinstance(msg_type, str) and msg_type.startswith("10"):
-                    msg_num = int(msg_type) if msg_type.isdigit() else 0
-                    if 1121 <= msg_num <= 1127 and not hasattr(self, '_msm_debug_logged'):
-                        self._msm_debug_logged = set()
-                    # Log BeiDou messages in detail
-                    if 1121 <= msg_num <= 1127 and msg_type not in getattr(self, '_msm_debug_logged', set()):
-                        all_fields = {attr: getattr(parsed, attr) for attr in dir(parsed) if not attr.startswith('_') and not callable(getattr(parsed, attr))}
-                        logging.info(f"BeiDou MSM message {msg_type} ALL fields and values: {all_fields}")
-                        logging.info(f"BeiDou MSM message {msg_type} type: {type(parsed)}")
-                        if hasattr(self, '_msm_debug_logged'):
-                            self._msm_debug_logged.add(msg_type)
+                # Extract and update satellite and signal info
+                sat_info, sig_info = extract_satellite_info(parsed)
                 
                 if caster_name not in self.satellite_stats:
                     self.satellite_stats[caster_name] = {
                         'GPS': set(), 'GLONASS': set(), 'Galileo': set(),
                         'BeiDou': set(), 'QZSS': set(), 'SBAS': set()
                     }
-                # Merge satellite data (union of sets)
+                if caster_name not in self.signal_stats:
+                    self.signal_stats[caster_name] = {
+                        'GPS': set(), 'GLONASS': set(), 'Galileo': set(),
+                        'BeiDou': set(), 'QZSS': set(), 'SBAS': set()
+                    }
+                # Merge satellite and signal data (union of sets)
                 for constellation, sats in sat_info.items():
                     if sats:  # Only update if satellites found
                         self.satellite_stats[caster_name][constellation].update(sats)
+                for constellation, sigs in sig_info.items():
+                    if sigs:  # Only update if signals found
+                        self.signal_stats[caster_name][constellation].update(sigs)
             # remove consumed bytes from client's buffer
             consumed = stream.tell()
             if consumed:
@@ -997,9 +1015,16 @@ class NTRIPCheckerPro(QWidget):
 
     # ---------- Messages ----------
     def on_caster_selected(self, row, _col):
-        self.selected_caster = self.caster_list.item(row, 0).text()
-        self.tabs.setCurrentWidget(self.msg_tab)
-        # update comboboxes to match selected caster
+        try:
+            self.selected_caster = self.caster_list.item(row, 0).text()
+            self.tabs.setCurrentWidget(self.msg_tab)
+            # update comboboxes to match selected caster
+        except Exception as e:
+            logging.exception("Error in on_caster_selected")
+            print(f"Error selecting caster: {e}")
+            import traceback
+            traceback.print_exc()
+            return
         try:
             self.msg_caster_combo.blockSignals(True)
             idx = self.msg_caster_combo.findText(self.selected_caster)
@@ -1026,7 +1051,13 @@ class NTRIPCheckerPro(QWidget):
                 self.sat_caster_combo.blockSignals(False)
         except Exception:
             logging.debug("Failed syncing satellites combobox on caster select", exc_info=True)
-        self.update_messages_view()
+        try:
+            self.update_messages_view()
+        except Exception as e:
+            logging.exception("Error in update_messages_view from on_caster_selected")
+            print(f"Error updating messages view: {e}")
+            import traceback
+            traceback.print_exc()
 
     def update_messages_view(self):
         caster = self.selected_caster
@@ -1112,8 +1143,8 @@ class NTRIPCheckerPro(QWidget):
             self.selected_caster = None
             self.sat_chart_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>No caster selected.</h3>")
             # Reset all counts to 0
-            for label in self.constellation_cards.values():
-                label.setText("Satellites\n0")
+            for count_label in self.constellation_cards.values():
+                count_label.setText("Satellites\n0")
     
     def show_satellite_debug(self):
         """Show debug information about satellite stats"""
@@ -1129,6 +1160,12 @@ class NTRIPCheckerPro(QWidget):
                         debug_info += f"  {const_name}: {len(sat_set)} satellites - PRNs: {sorted(sat_set)}\n"
                     else:
                         debug_info += f"  {const_name}: 0 satellites\n"
+                    
+                    # Show signal information
+                    if caster_name in self.signal_stats:
+                        signals = self.signal_stats[caster_name].get(const_name, set())
+                        if signals:
+                            debug_info += f"    Signals: {', '.join(sorted(signals))}\n"
                 debug_info += "\n"
         
         # Also show RTCM message types received
@@ -1148,34 +1185,44 @@ class NTRIPCheckerPro(QWidget):
     def clear_satellite_data(self):
         """Clear all accumulated satellite data and refresh view"""
         self.satellite_stats.clear()
+        self.signal_stats.clear()
         # Reset view
         self.sat_chart_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>Satellite data cleared. Reconnect to casters to start tracking.</h3>")
-        for label in self.constellation_cards.values():
-            label.setText("Satellites\n0")
+        for count_label in self.constellation_cards.values():
+            count_label.setText("Satellites\n0")
         self.sat_last_update.setText("Last update: Never")
         logging.info("Satellite data cleared")
     
     def update_satellites_view(self):
         """Update satellite view for selected caster"""
-        if not self.selected_caster or self.selected_caster not in self.satellite_stats:
-            return
-        
-        sat_data = self.satellite_stats[self.selected_caster]
-        
-        # Update last update timestamp
-        now = datetime.now().strftime("%H:%M:%S")
-        self.sat_last_update.setText(f"Last update: {now}")
-        
-        # Update constellation cards
-        total_sats = 0
-        for const_name, count_label in self.constellation_cards.items():
-            count = len(sat_data.get(const_name, set()))
-            count_label.setText(f"Satellites\n{count}")
-            total_sats += count
-        
-        # Generate donut chart
-        chart_html = self.generate_satellite_donut_chart(sat_data, total_sats)
-        self.sat_chart_view.setHtml(chart_html)
+        try:
+            # Safety checks - ensure GUI is ready
+            if not hasattr(self, 'constellation_cards') or not self.constellation_cards:
+                return
+            if not hasattr(self, 'sat_chart_view'):
+                return
+            if not self.selected_caster or self.selected_caster not in self.satellite_stats:
+                return
+            
+            sat_data = self.satellite_stats[self.selected_caster]
+            
+            # Update last update timestamp
+            now = datetime.now().strftime("%H:%M:%S")
+            self.sat_last_update.setText(f"Last update: {now}")
+            
+            # Update constellation cards
+            total_sats = 0
+            for const_name, count_label in self.constellation_cards.items():
+                count = len(sat_data.get(const_name, set()))
+                count_label.setText(f"Satellites\n{count}")
+                total_sats += count
+            
+            # Generate donut chart
+            chart_html = self.generate_satellite_donut_chart(sat_data, total_sats)
+            self.sat_chart_view.setHtml(chart_html)
+        except Exception as e:
+            logging.exception("Error updating satellites view")
+            print(f"Error in update_satellites_view: {e}")
     
     def generate_satellite_donut_chart(self, sat_data, total):
         """Generate SVG donut chart for satellites"""
@@ -1336,6 +1383,19 @@ if __name__ == "__main__":
         logging.getLogger().addHandler(fh)
     except Exception:
         logging.exception("Failed to set up RotatingFileHandler for logging")
+    
+    # Custom exception hook to catch PyQt errors
+    def exception_hook(exctype, value, tb):
+        print(f"\n{'='*80}")
+        print(f"UNHANDLED EXCEPTION: {exctype.__name__}: {value}")
+        print(f"{'='*80}")
+        import traceback
+        traceback.print_exception(exctype, value, tb)
+        print(f"{'='*80}\n")
+        logging.exception("Unhandled exception", exc_info=(exctype, value, tb))
+    
+    sys.excepthook = exception_hook
+    
     app = QApplication(sys.argv)
     apply_stylesheet(app, theme='dark_teal.xml')
     app.setStyleSheet("""
@@ -1360,8 +1420,16 @@ if __name__ == "__main__":
     QLineEdit { color: #e6eef3; }
     QLabel { color: #e6eef3; }
     """)
-    win = NTRIPCheckerPro()
-    # ensure clients are stopped on application exit
-    app.aboutToQuit.connect(win.cleanup)
-    win.show()
-    sys.exit(app.exec())
+    try:
+        win = NTRIPCheckerPro()
+        # ensure clients are stopped on application exit
+        app.aboutToQuit.connect(win.cleanup)
+        win.show()
+        sys.exit(app.exec())
+    except Exception as e:
+        print(f"\n{'='*80}")
+        print(f"FATAL ERROR: {e}")
+        print(f"{'='*80}\n")
+        import traceback
+        traceback.print_exc()
+        input("Press Enter to exit...")
