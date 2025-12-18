@@ -21,7 +21,7 @@
 
 3. **Run the Application**
    ```powershell
-   python ntrip_checker_pro_v5_0.py
+   python ntrip_checker_pro_v5_1.py
    ```
 
 ### Option 2: Desktop Shortcut (No Console)
@@ -35,7 +35,7 @@ if (-not $pythonw) {
   $pythonw = "C:\Users\$env:USERNAME\AppData\Local\Programs\Python\Python311\pythonw.exe"
 }
 
-$script = "C:\path\to\ntrip-checker-pro\ntrip_checker_pro_v5_0.py"
+$script = "C:\path\to\ntrip-checker-pro\ntrip_checker_pro_v5_1.py"
 $desktop = [Environment]::GetFolderPath('Desktop')
 $lnk = Join-Path $desktop "NTRIP Checker PRO.lnk"
 
@@ -94,7 +94,7 @@ pip3 install -r requirements.txt
 ### 5. Run the Application
 
 ```bash
-python3 ntrip_checker_pro_v5_0.py
+python3 ntrip_checker_pro_v5_1.py
 ```
 
 ### 6. Create a Desktop Launcher (Optional)
@@ -106,7 +106,7 @@ Create a file `~/.local/share/applications/ntrip-checker.desktop`:
 Type=Application
 Name=NTRIP Checker PRO
 Comment=GNSS NTRIP Client
-Exec=/home/YOUR_USERNAME/ntrip-checker-pro/venv/bin/python3 /home/YOUR_USERNAME/ntrip-checker-pro/ntrip_checker_pro_v5_0.py
+Exec=/home/YOUR_USERNAME/ntrip-checker-pro/venv/bin/python3 /home/YOUR_USERNAME/ntrip-checker-pro/ntrip_checker_pro_v5_1.py
 Icon=network-wireless
 Terminal=false
 Categories=Utility;Network;
@@ -114,7 +114,7 @@ Categories=Utility;Network;
 
 **Note:** Replace `YOUR_USERNAME` with your actual username. If not using venv, use:
 ```ini
-Exec=python3 /home/YOUR_USERNAME/ntrip-checker-pro/ntrip_checker_pro_v5_0.py
+Exec=python3 /home/YOUR_USERNAME/ntrip-checker-pro/ntrip_checker_pro_v5_1.py
 ```
 
 Then make it executable:
@@ -175,7 +175,7 @@ pip3 install -r requirements.txt --break-system-packages
 ### 4. Run the Application
 
 ```bash
-python3 ntrip_checker_pro_v5_0.py
+python3 ntrip_checker_pro_v5_1.py
 ```
 
 **Requirements:**
@@ -191,7 +191,7 @@ crontab -e
 
 Add at the end:
 ```
-@reboot sleep 10 && DISPLAY=:0 python3 /full/path/to/ntrip_checker_pro_v5_0.py &
+@reboot sleep 10 && DISPLAY=:0 python3 /full/path/to/ntrip_checker_pro_v5_1.py &
 ```
 
 This will auto-launch the app 10 seconds after boot (adjust delay if needed).
@@ -210,7 +210,7 @@ cd ~/ntrip-checker-pro
 python3 -m venv venv
 source venv/bin/activate
 pip3 install -r requirements.txt
-python3 ntrip_checker_pro_v5_0.py
+python3 ntrip_checker_pro_v5_1.py
 ```
 
 **Solution 2: Reinstall PyQt6 via pip**
@@ -248,8 +248,8 @@ $pythonw = "C:\Users\YOUR_USERNAME\AppData\Local\Programs\Python\Python311\pytho
 
 **Solution:**
 ```bash
-chmod +x ntrip_checker_pro_v5_0.py
-python3 ./ntrip_checker_pro_v5_0.py
+chmod +x ntrip_checker_pro_v5_1.py
+python3 ./ntrip_checker_pro_v5_1.py
 ```
 
 ### QXcbConnection Error (Linux Remote)
