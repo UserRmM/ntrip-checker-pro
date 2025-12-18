@@ -376,7 +376,7 @@ class AddCasterDialog(QDialog):
 class NTRIPCheckerPro(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("NTRIP Checker PRO v5.0")
+        self.setWindowTitle("NTRIP Checker PRO v5.1")
         # Set fixed size to prevent window jumping when switching tabs
         self.setMinimumSize(1200, 800)
         self.resize(1200, 800)
