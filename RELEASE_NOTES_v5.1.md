@@ -1,6 +1,6 @@
 # NTRIP Checker PRO v5.1
 
-**Release Date:** December 17, 2024
+**Release Date:** December 17, 2025
 
 ## 🎉 What's New
 
