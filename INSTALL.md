@@ -99,30 +99,46 @@ python3 ntrip_checker_pro_v5_2.py
 
 ### 6. Create a Desktop Launcher (Optional)
 
-Create a file `~/.local/share/applications/ntrip-checker.desktop`:
+The repository includes an automated installer for desktop shortcuts:
+
+```bash
+./install-desktop-shortcut.sh
+```
+
+This will:
+- Create an application menu entry
+- Optionally create a desktop shortcut
+- Set up the correct paths automatically
+
+**Manual Installation (alternative):**
+
+Create a file `~/.local/share/applications/ntrip-checker-pro.desktop`:
 
 ```ini
 [Desktop Entry]
+Version=5.2
 Type=Application
 Name=NTRIP Checker PRO
-Comment=GNSS NTRIP Client
-Exec=/home/YOUR_USERNAME/ntrip-checker-pro/venv/bin/python3 /home/YOUR_USERNAME/ntrip-checker-pro/ntrip_checker_pro_v5_2.py
-Icon=network-wireless
+Comment=Professional NTRIP client for GNSS base stations
+Exec=python3 /home/YOUR_USERNAME/ntrip-checker-pro/ntrip_checker_pro_v5_2.py
+Icon=/home/YOUR_USERNAME/ntrip-checker-pro/icon.png
+Path=/home/YOUR_USERNAME/ntrip-checker-pro
 Terminal=false
-Categories=Utility;Network;
+Categories=Science;Geography;Education;
+Keywords=NTRIP;GNSS;GPS;RTK;Caster;
 ```
 
-**Note:** Replace `YOUR_USERNAME` with your actual username. If not using venv, use:
+**Note:** Replace `YOUR_USERNAME` with your actual username. If using venv:
 ```ini
-Exec=python3 /home/YOUR_USERNAME/ntrip-checker-pro/ntrip_checker_pro_v5_2.py
+Exec=/home/YOUR_USERNAME/ntrip-checker-pro/venv/bin/python3 /home/YOUR_USERNAME/ntrip-checker-pro/ntrip_checker_pro_v5_2.py
 ```
 
 Then make it executable:
 ```bash
-chmod +x ~/.local/share/applications/ntrip-checker.desktop
+chmod +x ~/.local/share/applications/ntrip-checker-pro.desktop
 ```
 
-The app will appear in your application menu.
+The app will appear in your application menu under Science/Geography.
 
 ---
 
@@ -182,7 +198,19 @@ python3 ntrip_checker_pro_v5_2.py
 - HDMI display + keyboard/mouse, OR
 - SSH with X11 forwarding for remote desktop
 
-### 5. Start on Boot (Optional)
+### 5. Create Desktop Shortcut (Optional)
+
+Run the automated installer:
+```bash
+chmod +x install-desktop-shortcut.sh
+./install-desktop-shortcut.sh
+```
+
+This creates:
+- Application menu entry (Science → NTRIP Checker PRO)
+- Optional desktop shortcut
+
+### 6. Start on Boot (Optional)
 
 Edit crontab:
 ```bash
@@ -191,10 +219,10 @@ crontab -e
 
 Add at the end:
 ```
-@reboot sleep 10 && DISPLAY=:0 python3 /full/path/to/ntrip_checker_pro_v5_2.py &
+@reboot sleep 10 && DISPLAY=:0 python3 /home/YOUR_USERNAME/ntrip-checker-pro/ntrip_checker_pro_v5_2.py &
 ```
 
-This will auto-launch the app 10 seconds after boot (adjust delay if needed).
+Replace `YOUR_USERNAME` with your username. This auto-launches the app 10 seconds after boot.
 
 ---
 

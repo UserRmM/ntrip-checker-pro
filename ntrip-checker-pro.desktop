@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=5.2
+Type=Application
+Name=NTRIP Checker PRO
+Comment=Professional NTRIP client for GNSS base stations
+Exec=python3 %d/ntrip_checker_pro_v5_2.py
+Icon=%d/icon.png
+Path=%d
+Terminal=false
+Categories=Science;Geography;Education;
+Keywords=NTRIP;GNSS;GPS;RTK;Caster;
+StartupNotify=true
