@@ -18,11 +18,30 @@ A professional GNSS NTRIP client application for monitoring and analyzing NTRIP 
 
 ## Screenshots
 
-- **Casters Tab**: View all connected NTRIP streams with status, data rates, and uptime
-- **Messages Tab**: Real-time RTCM message statistics with constellation-colored pie chart
-- **Satellites Tab**: Live satellite constellation tracking with interactive donut chart and color-coded cards
-- **Map Tab**: Geographic visualization of caster locations with detailed popups
-- **Sourcetable Tab**: Browse and automatically add mountpoints from NTRIP casters with location data
+### Casters Tab
+View all connected NTRIP streams with status, data rates, and uptime.
+
+![Casters Tab](screenshots/casters_tab.png)
+
+### Messages Tab
+Real-time RTCM message statistics with constellation-colored donut chart.
+
+![Messages Tab](screenshots/messages_tab.png)
+
+### Satellites Tab
+Live satellite constellation tracking with interactive donut chart and color-coded cards.
+
+![Satellites Tab](screenshots/satellites_tab.png)
+
+### Map Tab
+Geographic visualization of caster locations with detailed popups.
+
+![Map Tab](screenshots/map_tab.png)
+
+### Sourcetable Tab
+Browse and automatically add mountpoints from NTRIP casters with location data.
+
+![Sourcetable Tab](screenshots/sourcetable_tab.png)
 
 ## Requirements
 
