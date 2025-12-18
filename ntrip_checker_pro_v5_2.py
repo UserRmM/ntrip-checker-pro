@@ -1,19 +1,26 @@
-# NTRIP Checker PRO v5.2
+# NTRIP Checker PRO v5.3
 # A professional GNSS NTRIP client with real-time satellite tracking and RTCM message analysis
+
+__version__ = "5.3"
+__author__ = "Raine Mustonen"
+__github__ = "https://github.com/UserRmM/ntrip-checker-pro"
+
 import sys, io, base64, socket, threading, json, os, time, logging
 from logging.handlers import RotatingFileHandler
 from datetime import datetime, timedelta
 from functools import partial
 from pyrtcm import RTCMReader
 from html import escape
+import urllib.request
+import urllib.error
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QTabWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
     QMessageBox, QPushButton, QHeaderView, QDialog, QFormLayout,
-    QLineEdit, QSpinBox, QHBoxLayout, QSizePolicy, QComboBox
+    QLineEdit, QSpinBox, QHBoxLayout, QSizePolicy, QComboBox, QTextBrowser, QMenuBar, QMenu
 )
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QDesktopServices
 from qt_material import apply_stylesheet
 
 def get_casters_file_path():
@@ -387,6 +394,155 @@ class NTRIPClient(threading.Thread):
         except Exception:
             logging.debug("Exception in stop() while closing socket", exc_info=True)
 
+# ---------- About Dialog ----------
+class AboutDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("About NTRIP Checker PRO")
+        self.setMinimumWidth(500)
+        self.setMinimumHeight(400)
+        
+        layout = QVBoxLayout()
+        
+        # Title
+        title = QLabel(f"<h1>NTRIP Checker PRO</h1>")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("color: #4fc3f7; margin: 10px;")
+        layout.addWidget(title)
+        
+        # Version
+        version_label = QLabel(f"<h2>Version {__version__}</h2>")
+        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        version_label.setStyleSheet("color: #ffffff; margin: 5px;")
+        layout.addWidget(version_label)
+        
+        # Description
+        desc = QLabel("Professional NTRIP client for GNSS base stations")
+        desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc.setStyleSheet("color: #b0b0b0; margin: 10px;")
+        layout.addWidget(desc)
+        
+        # Info text browser
+        info_browser = QTextBrowser()
+        info_browser.setOpenExternalLinks(True)
+        info_html = f"""
+        <div style="color: #ffffff; font-size: 12px; line-height: 1.6;">
+        <p><b>Author:</b> {__author__}</p>
+        <p><b>GitHub:</b> <a href="{__github__}" style="color: #4fc3f7;">{__github__}</a></p>
+        <p><b>License:</b> MIT</p>
+        <br>
+        <p><b>Features:</b></p>
+        <ul>
+        <li>Real-time NTRIP stream monitoring</li>
+        <li>RTCM message analysis</li>
+        <li>Satellite constellation tracking</li>
+        <li>Interactive map with RTK coverage</li>
+        <li>Automatic mountpoint discovery</li>
+        </ul>
+        </div>
+        """
+        info_browser.setHtml(info_html)
+        info_browser.setMaximumHeight(200)
+        info_browser.setStyleSheet("background-color: #2b2b2b; border: 1px solid #444; padding: 10px;")
+        layout.addWidget(info_browser)
+        
+        layout.addStretch()
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        self.check_update_btn = QPushButton("Check for Updates")
+        self.check_update_btn.setStyleSheet("background-color: #4fc3f7; color: #000; font-weight: bold; padding: 8px;")
+        self.check_update_btn.clicked.connect(self.check_for_updates)
+        button_layout.addWidget(self.check_update_btn)
+        
+        close_btn = QPushButton("Close")
+        close_btn.setStyleSheet("background-color: #555; color: #fff; padding: 8px;")
+        close_btn.clicked.connect(self.accept)
+        button_layout.addWidget(close_btn)
+        
+        layout.addLayout(button_layout)
+        
+        self.setLayout(layout)
+    
+    def check_for_updates(self):
+        """Check GitHub API for latest release version."""
+        self.check_update_btn.setEnabled(False)
+        self.check_update_btn.setText("Checking...")
+        
+        try:
+            # GitHub API endpoint for latest release
+            api_url = "https://api.github.com/repos/UserRmM/ntrip-checker-pro/releases/latest"
+            req = urllib.request.Request(api_url)
+            req.add_header('User-Agent', f'NTRIP-Checker-PRO/{__version__}')
+            
+            with urllib.request.urlopen(req, timeout=10) as response:
+                data = json.loads(response.read().decode())
+                
+                latest_version = data.get('tag_name', '').lstrip('v')
+                release_url = data.get('html_url', __github__)
+                release_notes = data.get('body', 'No release notes available.')
+                published_at = data.get('published_at', '')
+                
+                # Compare versions
+                current = __version__
+                
+                if latest_version and latest_version != current:
+                    # New version available
+                    msg = QMessageBox(self)
+                    msg.setWindowTitle("Update Available")
+                    msg.setIcon(QMessageBox.Icon.Information)
+                    msg.setText(f"<h3>🎉 New version available!</h3>")
+                    
+                    # Truncate release notes if too long
+                    notes_preview = release_notes[:500] + "..." if len(release_notes) > 500 else release_notes
+                    
+                    msg.setInformativeText(
+                        f"<p><b>Current version:</b> {current}</p>"
+                        f"<p><b>Latest version:</b> {latest_version}</p>"
+                        f"<p><b>Published:</b> {published_at[:10]}</p>"
+                        f"<br>"
+                        f"<p><b>What's new:</b></p>"
+                        f"<p style='color: #b0b0b0;'>{notes_preview}</p>"
+                    )
+                    
+                    msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+                    view_btn = msg.addButton("View on GitHub", QMessageBox.ButtonRole.ActionRole)
+                    
+                    msg.exec()
+                    
+                    # If user clicked "View on GitHub"
+                    if msg.clickedButton() == view_btn:
+                        QDesktopServices.openUrl(QUrl(release_url))
+                
+                else:
+                    # Up to date
+                    QMessageBox.information(
+                        self,
+                        "No Updates",
+                        f"<p>You are running the latest version ({current}).</p>"
+                        f"<p>Check <a href='{__github__}'>GitHub</a> for development versions.</p>"
+                    )
+        
+        except urllib.error.URLError as e:
+            QMessageBox.warning(
+                self,
+                "Connection Error",
+                f"<p>Could not check for updates.</p>"
+                f"<p>Error: {str(e)}</p>"
+                f"<p>Please check your internet connection.</p>"
+            )
+        except Exception as e:
+            QMessageBox.warning(
+                self,
+                "Error",
+                f"<p>An error occurred while checking for updates.</p>"
+                f"<p>Error: {str(e)}</p>"
+            )
+        finally:
+            self.check_update_btn.setEnabled(True)
+            self.check_update_btn.setText("Check for Updates")
+
 # ---------- Add Caster Dialog ----------
 class AddCasterDialog(QDialog):
     def __init__(self, parent=None, data=None):
@@ -481,7 +637,7 @@ class AddCasterDialog(QDialog):
 class NTRIPCheckerPro(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("NTRIP Checker PRO v5.2")
+        self.setWindowTitle(f"NTRIP Checker PRO v{__version__}")
         # Set fixed size to prevent window jumping when switching tabs
         self.setMinimumSize(1200, 800)
         self.resize(1200, 800)
@@ -529,9 +685,18 @@ class NTRIPCheckerPro(QWidget):
 
     # ---------- UI ----------
     def init_ui(self):
+        # Create menu bar
+        self.menu_bar = QMenuBar()
+        
+        # Help menu
+        help_menu = self.menu_bar.addMenu("Help")
+        about_action = help_menu.addAction("About")
+        about_action.triggered.connect(self.show_about_dialog)
+        
         self.tabs = QTabWidget()
         self.tabs.currentChanged.connect(self.on_tab_changed)
         layout = QVBoxLayout()
+        layout.setMenuBar(self.menu_bar)
         layout.addWidget(self.tabs)
         self.setLayout(layout)
 
@@ -1860,6 +2025,12 @@ class NTRIPCheckerPro(QWidget):
             logging.info(f"Connecting {connected_count} disconnected caster(s)")
         else:
             logging.info("All casters already connected")
+
+    # ---------- About Dialog ----------
+    def show_about_dialog(self):
+        """Show About dialog with version info and update check"""
+        dialog = AboutDialog(self)
+        dialog.exec()
 
     # ---------- Messages ----------
     def close_detail_panel(self):
