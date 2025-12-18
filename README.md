@@ -220,6 +220,5 @@ See [CHANGELOG.md](CHANGELOG.md) for version history and updates.
 
 ---
 
-**Developed by:** You  
-**Version:** 5.0  
-**Last Updated:** December 2024
+**Version:** 5.1  
+**Last Updated:** December 2025
