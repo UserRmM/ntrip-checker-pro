@@ -57,28 +57,32 @@ See `requirements.txt` for full dependency list.
 
 ## Installation
 
-### Windows
+### Quick Install (Recommended)
 
-1. Install Python 3.9+ from [python.org](https://www.python.org/)
-2. Clone the repository:
-   ```bash
-   git clone https://github.com/UserRmM/ntrip-checker-pro.git
-   cd ntrip-checker-pro
-   ```
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Run the application:
-   ```bash
-   python ntrip_checker_pro_v5_2.py
-   ```
+**Linux / Raspberry Pi:**
+```bash
+git clone https://github.com/UserRmM/ntrip-checker-pro.git
+cd ntrip-checker-pro
+chmod +x install.sh
+./install.sh
+```
 
-Or use the provided desktop shortcut (see INSTALL.md).
+**Windows:**
+```powershell
+git clone https://github.com/UserRmM/ntrip-checker-pro.git
+cd ntrip-checker-pro
+.\install.ps1
+```
 
-### Linux / Raspberry Pi
+The installer will:
+- ✅ Install all dependencies automatically
+- ✅ Create desktop shortcuts and application menu entries
+- ✅ Set up virtual environment (Linux/Raspberry Pi)
+- ✅ Optionally enable autostart on boot
 
-See [INSTALL.md](INSTALL.md) for detailed setup instructions.
+### Manual Installation
+
+See [INSTALL.md](INSTALL.md) for detailed manual installation instructions for all platforms.
 
 ## Quick Start
 
