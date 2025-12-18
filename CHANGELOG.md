@@ -2,7 +2,7 @@
 
 All notable changes to NTRIP Checker PRO are documented in this file.
 
-## [5.1] — December 2024
+## [5.1] — December 2025
 
 ### Added
 - **Sourcetable Browser Tab** — Automatically fetch mountpoint lists from NTRIP casters
@@ -26,7 +26,7 @@ All notable changes to NTRIP Checker PRO are documented in this file.
 ### Fixed
 - **Sourcetable Parsing** — Robust STR line parsing with error tolerance for malformed entries
 
-## [5.0] — December 2024
+## [5.0] — December 2025
 
 ### Added
 - **Satellites Tab** with real-time GNSS constellation tracking
@@ -112,7 +112,7 @@ All notable changes to NTRIP Checker PRO are documented in this file.
 
 ---
 
-**Version**: 5.0  
-**Release Date**: December 2024  
+**Version**: 5.1  
+**Release Date**: December 2025  
 **Python**: 3.8+  
 **License**: MIT
