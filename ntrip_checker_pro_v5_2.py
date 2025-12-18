@@ -1,4 +1,4 @@
-# NTRIP Checker PRO v5.1
+# NTRIP Checker PRO v5.2
 # A professional GNSS NTRIP client with real-time satellite tracking and RTCM message analysis
 import sys, io, base64, socket, threading, json, os, time, logging
 from logging.handlers import RotatingFileHandler
@@ -146,6 +146,111 @@ def get_color_for_msg_type(msg_type):
         "#FFD92F", "#B2DF8A", "#FB9A99", "#CAB2D6", "#999999"
     ]
     return colors[hash(str(msg_type)) % len(colors)]
+
+def get_rtcm_description(msg_type):
+    """Get description for RTCM message type."""
+    descriptions = {
+        # Station information
+        "1005": "Station coordinates (stationary RTK reference station)",
+        "1006": "Station coordinates with antenna height",
+        "1007": "Antenna descriptor",
+        "1008": "Antenna descriptor & serial number",
+        "1033": "Receiver and antenna descriptors",
+        
+        # GPS MSM (Multiple Signal Messages)
+        "1071": "GPS MSM1 - Compact pseudoranges",
+        "1072": "GPS MSM2 - Compact phase ranges",
+        "1073": "GPS MSM3 - Compact pseudoranges and phase ranges",
+        "1074": "GPS MSM4 - Full pseudoranges and phase ranges",
+        "1075": "GPS MSM5 - Full pseudoranges, phase ranges, phase range rate, and CNR",
+        "1076": "GPS MSM6 - Full pseudoranges and CNR (high resolution)",
+        "1077": "GPS MSM7 - Full pseudoranges, phase ranges, phase range rate, and CNR (high resolution)",
+        
+        # GLONASS MSM
+        "1081": "GLONASS MSM1 - Compact pseudoranges",
+        "1082": "GLONASS MSM2 - Compact phase ranges",
+        "1083": "GLONASS MSM3 - Compact pseudoranges and phase ranges",
+        "1084": "GLONASS MSM4 - Full pseudoranges and phase ranges",
+        "1085": "GLONASS MSM5 - Full pseudoranges, phase ranges, phase range rate, and CNR",
+        "1086": "GLONASS MSM6 - Full pseudoranges and CNR (high resolution)",
+        "1087": "GLONASS MSM7 - Full pseudoranges, phase ranges, phase range rate, and CNR (high resolution)",
+        
+        # Galileo MSM
+        "1091": "Galileo MSM1 - Compact pseudoranges",
+        "1092": "Galileo MSM2 - Compact phase ranges",
+        "1093": "Galileo MSM3 - Compact pseudoranges and phase ranges",
+        "1094": "Galileo MSM4 - Full pseudoranges and phase ranges",
+        "1095": "Galileo MSM5 - Full pseudoranges, phase ranges, phase range rate, and CNR",
+        "1096": "Galileo MSM6 - Full pseudoranges and CNR (high resolution)",
+        "1097": "Galileo MSM7 - Full pseudoranges, phase ranges, phase range rate, and CNR (high resolution)",
+        
+        # SBAS MSM
+        "1101": "SBAS MSM1 - Compact pseudoranges",
+        "1102": "SBAS MSM2 - Compact phase ranges",
+        "1103": "SBAS MSM3 - Compact pseudoranges and phase ranges",
+        "1104": "SBAS MSM4 - Full pseudoranges and phase ranges",
+        "1105": "SBAS MSM5 - Full pseudoranges, phase ranges, phase range rate, and CNR",
+        "1106": "SBAS MSM6 - Full pseudoranges and CNR (high resolution)",
+        "1107": "SBAS MSM7 - Full pseudoranges, phase ranges, phase range rate, and CNR (high resolution)",
+        
+        # QZSS MSM
+        "1111": "QZSS MSM1 - Compact pseudoranges",
+        "1112": "QZSS MSM2 - Compact phase ranges",
+        "1113": "QZSS MSM3 - Compact pseudoranges and phase ranges",
+        "1114": "QZSS MSM4 - Full pseudoranges and phase ranges",
+        "1115": "QZSS MSM5 - Full pseudoranges, phase ranges, phase range rate, and CNR",
+        "1116": "QZSS MSM6 - Full pseudoranges and CNR (high resolution)",
+        "1117": "QZSS MSM7 - Full pseudoranges, phase ranges, phase range rate, and CNR (high resolution)",
+        
+        # BeiDou MSM
+        "1121": "BeiDou MSM1 - Compact pseudoranges",
+        "1122": "BeiDou MSM2 - Compact phase ranges",
+        "1123": "BeiDou MSM3 - Compact pseudoranges and phase ranges",
+        "1124": "BeiDou MSM4 - Full pseudoranges and phase ranges",
+        "1125": "BeiDou MSM5 - Full pseudoranges, phase ranges, phase range rate, and CNR",
+        "1126": "BeiDou MSM6 - Full pseudoranges and CNR (high resolution)",
+        "1127": "BeiDou MSM7 - Full pseudoranges, phase ranges, phase range rate, and CNR (high resolution)",
+    }
+    return descriptions.get(str(msg_type), "RTCM correction data")
+
+def get_constellation_description(constellation):
+    """Get description for GNSS constellation."""
+    descriptions = {
+        "GPS": "Global Positioning System (USA) - 31 operational satellites providing global coverage with L1, L2, and L5 signals.",
+        "Galileo": "European GNSS constellation - Provides high-precision positioning with E1, E5a, E5b, and E6 signals.",
+        "GLONASS": "Russian GNSS constellation - 24 satellites providing global coverage with L1 and L2 signals on FDMA frequencies.",
+        "BeiDou": "Chinese Navigation Satellite System - Global coverage with B1, B2, and B3 signals from MEO, IGSO, and GEO satellites.",
+        "QZSS": "Quasi-Zenith Satellite System (Japan) - Regional system enhancing GPS in Asia-Oceania with L1, L2, and L5 signals.",
+        "SBAS": "Satellite-Based Augmentation System - Geostationary satellites providing correction data for improved GPS accuracy."
+    }
+    return descriptions.get(constellation, "GNSS satellite constellation")
+
+def get_text_color_for_background(hex_color):
+    """Calculate optimal text color (black or white) based on background color luminance.
+    Uses W3C relative luminance formula for accessibility."""
+    # Remove # if present
+    hex_color = hex_color.lstrip('#')
+    
+    # Convert hex to RGB (0-255)
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    
+    # Convert to 0-1 range
+    r = r / 255.0
+    g = g / 255.0
+    b = b / 255.0
+    
+    # Apply gamma correction
+    r = r / 12.92 if r <= 0.03928 else ((r + 0.055) / 1.055) ** 2.4
+    g = g / 12.92 if g <= 0.03928 else ((g + 0.055) / 1.055) ** 2.4
+    b = b / 12.92 if b <= 0.03928 else ((b + 0.055) / 1.055) ** 2.4
+    
+    # Calculate relative luminance
+    luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    
+    # Return black for light backgrounds, white for dark backgrounds
+    return "black" if luminance > 0.5 else "white"
 
 # ---------- Signals ----------
 class NTRIPSignals(QObject):
@@ -376,7 +481,7 @@ class AddCasterDialog(QDialog):
 class NTRIPCheckerPro(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("NTRIP Checker PRO v5.1")
+        self.setWindowTitle("NTRIP Checker PRO v5.2")
         # Set fixed size to prevent window jumping when switching tabs
         self.setMinimumSize(1200, 800)
         self.resize(1200, 800)
@@ -387,9 +492,11 @@ class NTRIPCheckerPro(QWidget):
         self.last_bytes = {}
         # Removed auto-refresh counter - user has full control
         self.selected_caster = None
+        self.selected_constellation = None  # Track selected constellation for detail panel
         self.rtcm_stats = {}
         self.satellite_stats = {}  # Track satellites per caster
         self.signal_stats = {}  # Track signals/frequencies per caster
+        self.map_marker_ids = {}  # Track marker IDs for popup updates (marker_id -> caster_name)
 
         self.signals = NTRIPSignals()
         self.signals.status_signal.connect(self.on_status)
@@ -428,7 +535,20 @@ class NTRIPCheckerPro(QWidget):
         layout.addWidget(self.tabs)
         self.setLayout(layout)
 
-        # Casters tab
+        # Casters tab - create container widget with summary cards and detail panel
+        self.caster_tab_widget = QWidget()
+        caster_tab_layout = QVBoxLayout()
+        caster_tab_layout.setContentsMargins(8, 8, 8, 8)
+        caster_tab_layout.setSpacing(8)
+        self.caster_tab_widget.setLayout(caster_tab_layout)
+        
+        from PyQt6.QtWidgets import QFrame
+        
+        # Main content area: table + detail panel
+        content_layout = QHBoxLayout()
+        content_layout.setSpacing(10)
+        
+        # Casters table
         self.caster_list = QTableWidget()
         self.caster_list.setColumnCount(7)
         self.caster_list.setHorizontalHeaderLabels(["Name", "Address", "Mount", "Status", "B/s", "Uptime", "Actions"])
@@ -453,7 +573,116 @@ class NTRIPCheckerPro(QWidget):
         self.caster_list.verticalHeader().setDefaultSectionSize(40)
         self.caster_list.verticalHeader().setVisible(False)
         self.caster_list.cellClicked.connect(self.on_caster_selected)
-        self.tabs.addTab(self.caster_list, "Casters")
+        content_layout.addWidget(self.caster_list, 7)  # 70% width
+        
+        # Detail panel (hidden initially)
+        self.detail_panel = QWidget()
+        self.detail_panel.setMinimumWidth(250)
+        self.detail_panel.setMaximumWidth(400)
+        detail_layout = QVBoxLayout()
+        detail_layout.setContentsMargins(10, 10, 10, 10)
+        detail_layout.setSpacing(10)
+        self.detail_panel.setLayout(detail_layout)
+        self.detail_panel.setStyleSheet("""
+            QWidget {
+                background-color: #2d2d2d;
+                border: 1px solid #3a3a3a;
+                border-radius: 8px;
+            }
+        """)
+        
+        # Detail panel header with close button
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.detail_header = QLabel("Select a caster")
+        self.detail_header.setStyleSheet("color: #ffffff; font-weight: bold; font-size: 16px; background: transparent; border: none;")
+        self.detail_header.setWordWrap(True)
+        header_layout.addWidget(self.detail_header)
+        
+        self.detail_close_btn = QPushButton("✕")
+        self.detail_close_btn.setFixedSize(24, 24)
+        self.detail_close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #aaaaaa;
+                border: none;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                color: #ffffff;
+                background-color: #3a3a3a;
+                border-radius: 4px;
+            }
+        """)
+        self.detail_close_btn.clicked.connect(self.close_detail_panel)
+        self.detail_close_btn.setToolTip("Close panel")
+        header_layout.addWidget(self.detail_close_btn)
+        
+        detail_layout.addLayout(header_layout)
+        
+        # Detail panel status
+        self.detail_status = QLabel("")
+        self.detail_status.setStyleSheet("color: #aaaaaa; font-size: 13px; background: transparent; border: none;")
+        self.detail_status.setWordWrap(True)
+        detail_layout.addWidget(self.detail_status)
+        
+        # Separator line
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setStyleSheet("background-color: #3a3a3a; border: none;")
+        detail_layout.addWidget(separator)
+        
+        # Detail panel stats
+        self.detail_stats = QLabel("")
+        self.detail_stats.setStyleSheet("color: #ffffff; font-size: 12px; background: transparent; border: none;")
+        self.detail_stats.setWordWrap(True)
+        detail_layout.addWidget(self.detail_stats)
+        
+        # RTCM messages section
+        rtcm_label = QLabel("📡 RTCM Messages")
+        rtcm_label.setStyleSheet("color: #ffffff; font-weight: bold; font-size: 13px; margin-top: 10px; background: transparent; border: none;")
+        detail_layout.addWidget(rtcm_label)
+        
+        self.detail_rtcm = QLabel("No data")
+        self.detail_rtcm.setStyleSheet("color: #cccccc; font-size: 11px; font-family: monospace; background: transparent; border: none;")
+        self.detail_rtcm.setWordWrap(False)
+        detail_layout.addWidget(self.detail_rtcm)
+        
+        # Satellites section
+        self.detail_satellites = QLabel("")
+        self.detail_satellites.setStyleSheet("color: #ffffff; font-size: 12px; margin-top: 10px; background: transparent; border: none;")
+        self.detail_satellites.setWordWrap(True)
+        detail_layout.addWidget(self.detail_satellites)
+        
+        detail_layout.addStretch()
+        
+        # Quick action buttons
+        btn_layout = QHBoxLayout()
+        self.detail_btn_messages = QPushButton("Messages")
+        self.detail_btn_messages.setStyleSheet("background-color: #4b8cff; color: white; padding: 6px 12px; border-radius: 4px; border: none;")
+        self.detail_btn_messages.clicked.connect(lambda: self.tabs.setCurrentWidget(self.msg_tab) if hasattr(self, 'msg_tab') else None)
+        btn_layout.addWidget(self.detail_btn_messages)
+        
+        self.detail_btn_satellites = QPushButton("Satellites")
+        self.detail_btn_satellites.setStyleSheet("background-color: #4b8cff; color: white; padding: 6px 12px; border-radius: 4px; border: none;")
+        self.detail_btn_satellites.clicked.connect(lambda: self.tabs.setCurrentWidget(self.sat_tab) if hasattr(self, 'sat_tab') else None)
+        btn_layout.addWidget(self.detail_btn_satellites)
+        
+        detail_layout.addLayout(btn_layout)
+        
+        self.detail_panel.hide()  # Hidden initially
+        content_layout.addWidget(self.detail_panel, 3)  # 30% width
+        
+        caster_tab_layout.addLayout(content_layout)
+        
+        # Add info label at bottom
+        info_label = QLabel("💡 Click a caster to view detailed statistics")
+        info_label.setStyleSheet("color: #888888; font-size: 11px; margin-top: 5px;")
+        caster_tab_layout.addWidget(info_label)
+        
+        self.tabs.addTab(self.caster_tab_widget, "Casters")
         for c in self.casters:
             self._insert_caster_row(c)
 
@@ -476,8 +705,11 @@ class NTRIPCheckerPro(QWidget):
         # Messages tab
         self.msg_tab = QWidget()
         self.msg_layout = QVBoxLayout()
+        self.msg_layout.setContentsMargins(8, 8, 8, 8)
+        self.msg_layout.setSpacing(8)
         self.msg_tab.setLayout(self.msg_layout)
-        # header with station label and caster selector
+        
+        # Header with station label and caster selector
         msg_header_layout = QHBoxLayout()
         msg_label = QLabel("Station:")
         msg_label.setStyleSheet("color: #ffffff; font-weight: bold; font-size:15px; margin:6px;")
@@ -491,33 +723,20 @@ class NTRIPCheckerPro(QWidget):
         self.msg_layout.addLayout(msg_header_layout)
         self.msg_header = msg_label  # keep reference for compatibility
         
-        # Horizontal layout for chart and table
+        # Main content area: table + detail panel
         msg_content_layout = QHBoxLayout()
+        msg_content_layout.setSpacing(10)
         
-        # Left side: Pie chart container
-        chart_container = QWidget()
-        chart_layout = QVBoxLayout()
-        chart_layout.setContentsMargins(0, 0, 0, 0)
-        
-        self.msg_chart_view = QWebEngineView()
-        self.msg_chart_view.setMinimumSize(300, 300)
-        self.msg_chart_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        
-        chart_layout.addWidget(self.msg_chart_view)
-        chart_container.setLayout(chart_layout)
-        msg_content_layout.addWidget(chart_container, 1)  # stretch factor 1
-        
-        # Right side: Table container
-        table_container = QWidget()
-        table_layout = QVBoxLayout()
-        table_layout.setContentsMargins(0, 0, 0, 0)
-        
+        # Left side: Messages table
         self.msg_table = QTableWidget()
-        # 3 columns: type, last time, count
         self.msg_table.setColumnCount(3)
         self.msg_table.setHorizontalHeaderLabels(["RTCM Message", "Last Time Received", "Counter"])
-        self.msg_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.msg_table.setStyleSheet("QTableWidget { color: #ffffff; }")
+        self.msg_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        self.msg_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.msg_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        self.msg_table.setColumnWidth(0, 120)
+        self.msg_table.setColumnWidth(2, 100)
+        self.msg_table.setStyleSheet("QTableWidget { color: #ffffff; selection-background-color: #3a6ea5; }")
         self.msg_table.setAlternatingRowColors(True)
         self.msg_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         try:
@@ -526,158 +745,273 @@ class NTRIPCheckerPro(QWidget):
         except Exception:
             pass
         self.msg_table.verticalHeader().setVisible(False)
+        self.msg_table.cellClicked.connect(self.on_message_selected)
+        msg_content_layout.addWidget(self.msg_table, 7)  # 70% width
         
-        table_layout.addWidget(self.msg_table)
+        # Right side: Detail panel (hidden initially)
+        self.msg_detail_panel = QWidget()
+        self.msg_detail_panel.setMinimumWidth(250)
+        self.msg_detail_panel.setMaximumWidth(400)
+        msg_detail_layout = QVBoxLayout()
+        msg_detail_layout.setContentsMargins(10, 10, 10, 10)
+        msg_detail_layout.setSpacing(10)
+        self.msg_detail_panel.setLayout(msg_detail_layout)
+        self.msg_detail_panel.setStyleSheet("""
+            QWidget {
+                background-color: #2d2d2d;
+                border: 1px solid #3a3a3a;
+                border-radius: 8px;
+            }
+        """)
         
+        # Detail panel header with close button
+        msg_header_layout2 = QHBoxLayout()
+        msg_header_layout2.setContentsMargins(0, 0, 0, 0)
+        
+        self.msg_detail_header = QLabel("Select a message")
+        self.msg_detail_header.setStyleSheet("color: #ffffff; font-weight: bold; font-size: 16px; background: transparent; border: none;")
+        self.msg_detail_header.setWordWrap(True)
+        msg_header_layout2.addWidget(self.msg_detail_header)
+        
+        self.msg_detail_close_btn = QPushButton("✕")
+        self.msg_detail_close_btn.setFixedSize(24, 24)
+        self.msg_detail_close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #aaaaaa;
+                border: none;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                color: #ffffff;
+                background-color: #3a3a3a;
+                border-radius: 4px;
+            }
+        """)
+        self.msg_detail_close_btn.clicked.connect(self.close_message_detail_panel)
+        self.msg_detail_close_btn.setToolTip("Close panel")
+        msg_header_layout2.addWidget(self.msg_detail_close_btn)
+        
+        msg_detail_layout.addLayout(msg_header_layout2)
+        
+        # Message type description
+        self.msg_detail_description = QLabel("")
+        self.msg_detail_description.setStyleSheet("color: #aaaaaa; font-size: 12px; background: transparent; border: none;")
+        self.msg_detail_description.setWordWrap(True)
+        msg_detail_layout.addWidget(self.msg_detail_description)
+        
+        # Separator line
+        msg_separator = QFrame()
+        msg_separator.setFrameShape(QFrame.Shape.HLine)
+        msg_separator.setStyleSheet("background-color: #3a3a3a; border: none;")
+        msg_detail_layout.addWidget(msg_separator)
+        
+        # Statistics
+        self.msg_detail_stats = QLabel("")
+        self.msg_detail_stats.setStyleSheet("color: #ffffff; font-size: 12px; background: transparent; border: none;")
+        self.msg_detail_stats.setWordWrap(True)
+        msg_detail_layout.addWidget(self.msg_detail_stats)
+        
+        msg_detail_layout.addStretch()
+        
+        # Total messages label at bottom
         self.msg_total_label = QLabel("Total messages: 0")
-        self.msg_total_label.setStyleSheet("color: #ffffff;")
-        table_layout.addWidget(self.msg_total_label)
+        self.msg_total_label.setStyleSheet("color: #aaaaaa; font-size: 11px; background: transparent; border: none;")
+        msg_detail_layout.addWidget(self.msg_total_label)
         
-        table_container.setLayout(table_layout)
-        msg_content_layout.addWidget(table_container, 1)  # stretch factor 1
+        self.msg_detail_panel.hide()  # Hidden initially
+        msg_content_layout.addWidget(self.msg_detail_panel, 3)  # 30% width
         
         self.msg_layout.addLayout(msg_content_layout)
+        
+        # Add info label at bottom
+        msg_info_label = QLabel("💡 Click a message to view detailed statistics")
+        msg_info_label.setStyleSheet("color: #888888; font-size: 11px; margin-top: 5px;")
+        self.msg_layout.addWidget(msg_info_label)
+        
         self.tabs.addTab(self.msg_tab, "Messages")
+        self.selected_message = None
 
-        # Map tab
+        # Map tab - simple version with just map view
         self.map_tab = QWidget()
         self.map_layout = QVBoxLayout()
+        self.map_layout.setContentsMargins(8, 8, 8, 8)
+        self.map_layout.setSpacing(8)
         self.map_tab.setLayout(self.map_layout)
-        self.map_info = QLabel("Station: (none)")
-        # larger, clearer header for the map tab
-        self.map_info.setStyleSheet("color: #ffffff; font-weight: bold; font-size:16px; margin:8px;")
-        self.map_info.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        # header layout with station label + combobox
-        map_header = QHBoxLayout()
-        map_header.addWidget(self.map_info)
+        
+        # Header with station label and caster selector
+        map_header_layout = QHBoxLayout()
+        map_label = QLabel("Station:")
+        map_label.setStyleSheet("color: #ffffff; font-weight: bold; font-size:15px; margin:6px;")
         self.map_caster_combo = QComboBox()
-        self.map_caster_combo.setStyleSheet("color: #e6eef3; min-width:160px; margin-right:8px;")
-        self.map_caster_combo.addItem("(none)")
+        self.map_caster_combo.setStyleSheet("color: #ffffff;")
+        self.map_caster_combo.addItem("(All stations)")
         self.map_caster_combo.currentTextChanged.connect(self.on_map_caster_changed)
-        map_header.addWidget(self.map_caster_combo)
-        map_header.addStretch()
-        self.map_layout.addLayout(map_header)
+        map_header_layout.addWidget(map_label)
+        map_header_layout.addWidget(self.map_caster_combo)
+        map_header_layout.addStretch()
+        self.map_layout.addLayout(map_header_layout)
+        
+        # Map view (full width)
         self.map_view = QWebEngineView()
-        # ensure the map view expands to fill available space
         self.map_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.map_view.setMinimumHeight(320)
-        # Initialize with default message to prevent flash on first load
-        self.map_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>No caster selected.</h3>")
-        # add with stretch so map gets most space in the layout
-        self.map_layout.addWidget(self.map_view, 1)
+        self.map_view.setMinimumHeight(400)
+        self.map_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>Loading map...</h3>")
+        self.map_layout.addWidget(self.map_view)
+        
+        # Info label
+        map_info_label = QLabel("💡 Click a marker to view station details • Coverage circles show 20 km RTK radius • 🟢 Connected • 🔴 Disconnected")
+        map_info_label.setStyleSheet("color: #888888; font-size: 11px; margin-top: 5px;")
+        self.map_layout.addWidget(map_info_label)
         
         # Satellites tab
         self.sat_tab = QWidget()
         self.sat_layout = QVBoxLayout()
+        self.sat_layout.setContentsMargins(8, 8, 8, 8)
+        self.sat_layout.setSpacing(8)
         self.sat_tab.setLayout(self.sat_layout)
         
-        # Header with caster selector
-        sat_header = QHBoxLayout()
-        sat_header_label = QLabel("Satellites:")
-        sat_header_label.setStyleSheet("color: #ffffff; font-weight: bold; font-size:16px; margin:8px;")
-        sat_header.addWidget(sat_header_label)
-        
+        # Header with station label and caster selector
+        sat_header_layout = QHBoxLayout()
+        sat_label = QLabel("Station:")
+        sat_label.setStyleSheet("color: #ffffff; font-weight: bold; font-size:15px; margin:6px;")
         self.sat_caster_combo = QComboBox()
-        self.sat_caster_combo.setStyleSheet("color: #e6eef3; min-width:160px; margin-right:8px;")
+        self.sat_caster_combo.setStyleSheet("color: #ffffff;")
         self.sat_caster_combo.addItem("(none)")
         self.sat_caster_combo.currentTextChanged.connect(self.on_sat_caster_changed)
-        sat_header.addWidget(self.sat_caster_combo)
+        sat_header_layout.addWidget(sat_label)
+        sat_header_layout.addWidget(self.sat_caster_combo)
+        sat_header_layout.addStretch()
+        self.sat_layout.addLayout(sat_header_layout)
         
-        # Add Clear button to reset satellite data
-        sat_clear_btn = QPushButton("Clear Satellite Data")
-        sat_clear_btn.setStyleSheet("background-color: #E41A1C; color: white; padding: 5px 10px; margin-left: 10px;")
-        sat_clear_btn.clicked.connect(self.clear_satellite_data)
-        sat_header.addWidget(sat_clear_btn)
+        # Main content area: table + detail panel
+        sat_content_layout = QHBoxLayout()
+        sat_content_layout.setSpacing(10)
         
-        # Add debug button to show satellite stats
-        sat_debug_btn = QPushButton("Debug Info")
-        sat_debug_btn.setStyleSheet("background-color: #377EB8; color: white; padding: 5px 10px; margin-left: 5px;")
-        sat_debug_btn.clicked.connect(self.show_satellite_debug)
-        sat_header.addWidget(sat_debug_btn)
+        # Left side: Constellations table
+        self.sat_table = QTableWidget()
+        self.sat_table.setColumnCount(4)
+        self.sat_table.setHorizontalHeaderLabels(["Constellation", "Satellites", "Signals", "%"])
+        self.sat_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.sat_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        self.sat_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.sat_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        self.sat_table.setColumnWidth(1, 100)
+        self.sat_table.setColumnWidth(3, 80)
+        self.sat_table.setStyleSheet("QTableWidget { color: #ffffff; selection-background-color: #3a6ea5; }")
+        self.sat_table.setAlternatingRowColors(True)
+        self.sat_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        try:
+            self.sat_table.setSelectionBehavior(self.sat_table.SelectionBehavior.SelectRows)
+            self.sat_table.setSelectionMode(self.sat_table.SelectionMode.SingleSelection)
+        except Exception:
+            pass
+        self.sat_table.verticalHeader().setVisible(False)
+        self.sat_table.cellClicked.connect(self.on_constellation_selected)
+        sat_content_layout.addWidget(self.sat_table, 7)  # 70% width
         
-        # Add last update label
-        self.sat_last_update = QLabel("Last update: Never")
-        self.sat_last_update.setStyleSheet("color: #aaaaaa; font-size: 12px; margin-left: 15px;")
-        sat_header.addWidget(self.sat_last_update)
+        # Right side: Detail panel (hidden initially)
+        self.sat_detail_panel = QWidget()
+        self.sat_detail_panel.setMinimumWidth(250)
+        self.sat_detail_panel.setMaximumWidth(400)
+        sat_detail_layout = QVBoxLayout()
+        sat_detail_layout.setContentsMargins(10, 10, 10, 10)
+        sat_detail_layout.setSpacing(10)
+        self.sat_detail_panel.setLayout(sat_detail_layout)
+        self.sat_detail_panel.setStyleSheet("""
+            QWidget {
+                background-color: #2d2d2d;
+                border: 1px solid #3a3a3a;
+                border-radius: 8px;
+            }
+        """)
         
-        sat_header.addStretch()
-        self.sat_layout.addLayout(sat_header)
+        # Detail panel header with close button
+        sat_header_layout2 = QHBoxLayout()
+        sat_header_layout2.setContentsMargins(0, 0, 0, 0)
         
-        # Horizontal layout for chart and cards
-        from PyQt6.QtWidgets import QGridLayout, QFrame
-        content_layout = QHBoxLayout()
+        self.sat_detail_header = QLabel("Select a constellation")
+        self.sat_detail_header.setStyleSheet("color: #ffffff; font-weight: bold; font-size: 16px; background: transparent; border: none;")
+        self.sat_detail_header.setWordWrap(True)
+        sat_header_layout2.addWidget(self.sat_detail_header)
         
-        # Left side: Donut chart container
-        chart_container = QWidget()
-        chart_layout = QVBoxLayout()
-        chart_layout.setContentsMargins(0, 0, 0, 0)
+        self.sat_detail_close_btn = QPushButton("✕")
+        self.sat_detail_close_btn.setFixedSize(24, 24)
+        self.sat_detail_close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #aaaaaa;
+                border: none;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                color: #ffffff;
+                background-color: #3a3a3a;
+                border-radius: 4px;
+            }
+        """)
+        self.sat_detail_close_btn.clicked.connect(self.close_constellation_detail_panel)
+        self.sat_detail_close_btn.setToolTip("Close panel")
+        sat_header_layout2.addWidget(self.sat_detail_close_btn)
         
-        self.sat_chart_view = QWebEngineView()
-        self.sat_chart_view.setMinimumSize(300, 300)
-        self.sat_chart_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        # Initialize with default message to prevent flash on first load
-        self.sat_chart_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>No caster selected.</h3>")
+        sat_detail_layout.addLayout(sat_header_layout2)
         
-        chart_layout.addWidget(self.sat_chart_view)
-        chart_container.setLayout(chart_layout)
-        content_layout.addWidget(chart_container, 1)  # stretch factor 1
+        # Constellation description
+        self.sat_detail_description = QLabel("")
+        self.sat_detail_description.setStyleSheet("color: #aaaaaa; font-size: 12px; background: transparent; border: none;")
+        self.sat_detail_description.setWordWrap(True)
+        sat_detail_layout.addWidget(self.sat_detail_description)
         
-        # Right side: Constellation cards container
-        cards_container = QWidget()
-        cards_layout = QVBoxLayout()
-        cards_layout.setContentsMargins(0, 0, 0, 0)
+        # Separator line
+        sat_separator = QFrame()
+        sat_separator.setFrameShape(QFrame.Shape.HLine)
+        sat_separator.setStyleSheet("background-color: #3a3a3a; border: none;")
+        sat_detail_layout.addWidget(sat_separator)
         
-        self.sat_grid = QGridLayout()
-        self.sat_grid.setSpacing(20)
-        self.sat_grid.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Statistics
+        self.sat_detail_stats = QLabel("")
+        self.sat_detail_stats.setStyleSheet("color: #ffffff; font-size: 12px; background: transparent; border: none;")
+        self.sat_detail_stats.setWordWrap(True)
+        sat_detail_layout.addWidget(self.sat_detail_stats)
         
-        # Create constellation cards
-        self.constellation_cards = {}
-        constellations = [
-            ('GPS', '#4DAF4A', 0, 0),
-            ('Galileo', '#377EB8', 0, 1),
-            ('GLONASS', '#E41A1C', 1, 0),
-            ('BeiDou', '#FF7F00', 1, 1),
-            ('QZSS', '#984EA3', 2, 0),
-            ('SBAS', '#FFFF33', 2, 1)
-        ]
+        # PRN numbers section
+        sat_prn_label = QLabel("🛰️ Satellite PRNs")
+        sat_prn_label.setStyleSheet("color: #ffffff; font-weight: bold; font-size: 13px; margin-top: 10px; background: transparent; border: none;")
+        sat_detail_layout.addWidget(sat_prn_label)
         
-        for name, color, row, col in constellations:
-            card = QFrame()
-            card.setMinimumSize(180, 100)
-            card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            card.setStyleSheet(f"""
-                QFrame {{
-                    background-color: #2d2d2d;
-                    border: 2px solid {color};
-                    border-radius: 8px;
-                    padding: 8px;
-                }}
-            """)
-            card_layout = QVBoxLayout()
-            
-            # Constellation name
-            name_label = QLabel(name)
-            name_label.setStyleSheet(f"color: {color}; font-weight: bold; font-size: 14px;")
-            name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            card_layout.addWidget(name_label)
-            
-            # Satellite count
-            count_label = QLabel("0\nSatellites")
-            count_label.setStyleSheet("color: #ffffff; font-size: 20px; font-weight: bold;")
-            count_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            card_layout.addWidget(count_label)
-            
-            card.setLayout(card_layout)
-            self.sat_grid.addWidget(card, row, col)
-            self.constellation_cards[name] = count_label
+        self.sat_detail_prns = QLabel("No data")
+        self.sat_detail_prns.setStyleSheet("color: #cccccc; font-size: 11px; font-family: monospace; background: transparent; border: none;")
+        self.sat_detail_prns.setWordWrap(True)
+        sat_detail_layout.addWidget(self.sat_detail_prns)
         
-        cards_layout.addLayout(self.sat_grid)
-        cards_layout.addStretch()
-        cards_container.setLayout(cards_layout)
-        content_layout.addWidget(cards_container, 1)  # stretch factor 1
+        # Signals section
+        sat_sig_label = QLabel("📡 Detected Signals")
+        sat_sig_label.setStyleSheet("color: #ffffff; font-weight: bold; font-size: 13px; margin-top: 10px; background: transparent; border: none;")
+        sat_detail_layout.addWidget(sat_sig_label)
         
-        self.sat_layout.addLayout(content_layout)
+        self.sat_detail_signals = QLabel("No data")
+        self.sat_detail_signals.setStyleSheet("color: #cccccc; font-size: 11px; background: transparent; border: none;")
+        self.sat_detail_signals.setWordWrap(True)
+        sat_detail_layout.addWidget(self.sat_detail_signals)
+        
+        sat_detail_layout.addStretch()
+        
+        # Total satellites label at bottom
+        self.sat_total_label = QLabel("Total satellites: 0")
+        self.sat_total_label.setStyleSheet("color: #aaaaaa; font-size: 11px; background: transparent; border: none;")
+        sat_detail_layout.addWidget(self.sat_total_label)
+        
+        self.sat_detail_panel.hide()  # Hidden initially
+        sat_content_layout.addWidget(self.sat_detail_panel, 3)  # 30% width
+        
+        self.sat_layout.addLayout(sat_content_layout)
+        
+        # Add info label at bottom
+        sat_info_label = QLabel("💡 Click a constellation to view detailed satellite information")
+        sat_info_label.setStyleSheet("color: #888888; font-size: 11px; margin-top: 5px;")
+        self.sat_layout.addWidget(sat_info_label)
         
         self.tabs.addTab(self.sat_tab, "Satellites")
         self.tabs.addTab(self.map_tab, "Map")
@@ -825,22 +1159,161 @@ class NTRIPCheckerPro(QWidget):
         return w
 
     # ---------- Map Tab ----------
+    def on_map_caster_changed(self, text):
+        """Handle map caster selection change"""
+        self.update_map_view()
+    
     def update_map_view(self):
-        if not self.selected_caster:
-            self.map_info.setText("Station: (none)")
-            self.map_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>No caster selected.</h3>")
+        """Update map to show selected caster or all casters with status colors and enriched popups"""
+        if not self.casters:
+            self.map_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>No stations configured. Add a station to see it on the map.</h3>")
             return
-        caster = next((c for c in self.casters if c.get("name") == self.selected_caster), None)
-        if not caster:
-            self.map_info.setText("Station: (none)")
-            self.map_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>No caster selected.</h3>")
+        
+        # Get selected caster from combobox
+        selected = self.map_caster_combo.currentText()
+        
+        # Find casters with valid coordinates
+        if selected == "(All stations)":
+            valid_casters = [c for c in self.casters if c.get('lat') is not None and c.get('lon') is not None]
+        else:
+            # Filter to show only selected caster
+            valid_casters = [c for c in self.casters if c.get('name') == selected and c.get('lat') is not None and c.get('lon') is not None]
+        
+        if not valid_casters:
+            self.map_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>No stations have location data. Edit stations to add coordinates.</h3>")
             return
-        lat, lon, alt = caster.get("lat"), caster.get("lon"), caster.get("alt")
-        self.map_info.setText(f"Station: {caster['name']}")
-        if lat is None or lon is None:
-            self.map_view.setHtml(f"<h3 style='color:#ffffff;margin:1rem;'>No location data for caster '{escape(caster['name'])}'.</h3>")
-            return
-        name_esc = escape(caster['name'])
+        
+        # Calculate map bounds to fit all markers
+        if len(valid_casters) == 1:
+            # Single marker - use center and fixed zoom
+            center_lat = valid_casters[0]['lat']
+            center_lon = valid_casters[0]['lon']
+            use_bounds = False
+            zoom = 10
+        else:
+            # Multiple markers - calculate bounds
+            lats = [c['lat'] for c in valid_casters]
+            lons = [c['lon'] for c in valid_casters]
+            min_lat, max_lat = min(lats), max(lats)
+            min_lon, max_lon = min(lons), max(lons)
+            
+            # Calculate center
+            center_lat = (min_lat + max_lat) / 2
+            center_lon = (min_lon + max_lon) / 2
+            
+            # Use bounds for fitting
+            use_bounds = True
+            bounds_sw = f"[{min_lat}, {min_lon}]"
+            bounds_ne = f"[{max_lat}, {max_lon}]"
+        
+        # Build JavaScript for all markers
+        markers_js = ""
+        for caster in valid_casters:
+            name = escape(caster['name'])
+            lat = caster['lat']
+            lon = caster['lon']
+            alt = caster.get('alt', 'N/A')
+            host = escape(caster.get('host', 'N/A'))
+            port = caster.get('port', 'N/A')
+            mount = escape(caster.get('mount', 'N/A'))
+            
+            # Get status and determine color
+            client = self.clients.get(caster['name'])
+            if client and getattr(client, 'running', False):
+                # Check actual status from status text
+                status_color = '#4CAF50'  # Green - connected
+                status_icon = '🟢'
+                status_text = 'Connected'
+                
+                # Get real-time stats
+                start = self.start_times.get(caster['name'])
+                uptime_str = 'N/A'
+                if start:
+                    uptime = datetime.now() - start
+                    uptime_str = self.format_timedelta(uptime)
+                
+                total = getattr(client, "total_bytes", 0)
+                last = self.last_bytes.get(caster['name'], 0)
+                bps = total - last
+            else:
+                status_color = '#F44336'  # Red - disconnected
+                status_icon = '🔴'
+                status_text = 'Disconnected'
+                uptime_str = '-'
+                bps = 0
+            
+            # Get satellite count
+            sat_count = 0
+            sat_details = ''
+            if caster['name'] in self.satellite_stats:
+                sat_data = self.satellite_stats[caster['name']]
+                sat_count = sum(len(sats) for sats in sat_data.values())
+                sat_breakdown = []
+                for const in ['GPS', 'Galileo', 'GLONASS', 'BeiDou', 'QZSS', 'SBAS']:
+                    count = len(sat_data.get(const, set()))
+                    if count > 0:
+                        sat_breakdown.append(f"{const}: {count}")
+                if sat_breakdown:
+                    sat_details = '<br>' + ', '.join(sat_breakdown)
+            
+            # Get RTCM message types
+            rtcm_msgs = ''
+            if caster['name'] in self.rtcm_stats:
+                msg_types = sorted(self.rtcm_stats[caster['name']].keys(), key=lambda x: str(x))
+                if msg_types:
+                    rtcm_msgs = ', '.join(str(m) for m in msg_types[:10])
+                    if len(msg_types) > 10:
+                        rtcm_msgs += f', ... ({len(msg_types)} total)'
+            
+            # Build enriched popup content
+            popup_content = f"""
+                <div style='background:#ffffff;padding:10px;font-family:Arial,sans-serif;min-width:250px;'>
+                    <div style='font-weight:bold;color:#000000;font-size:16px;margin-bottom:8px;'>{status_icon} {name}</div>
+                    <div style='color:#000000;font-size:12px;line-height:1.6;'>
+                        <b>Status:</b> <span style='color:{status_color};font-weight:bold;'>{status_text}</span><br>
+                        <b>Uptime:</b> {uptime_str}<br>
+                        <b>Data rate:</b> <span id='data-rate-value'>{bps}</span> B/s<br>
+                        <hr style='margin:6px 0;border:none;border-top:1px solid #ddd;'>
+                        <b>📍 Location:</b><br>
+                        Lat: {lat}° | Lon: {lon}°<br>
+                        Alt: {alt} m<br>
+                        <hr style='margin:6px 0;border:none;border-top:1px solid #ddd;'>
+                        <b>Connection:</b><br>
+                        {host}:{port}/{mount}<br>
+                        {'<hr style="margin:6px 0;border:none;border-top:1px solid #ddd;"><b>🛰️ Satellites:</b> ' + str(sat_count) + sat_details + '<br>' if sat_count > 0 else ''}
+                        {'<hr style="margin:6px 0;border:none;border-top:1px solid #ddd;"><b>📡 RTCM:</b> ' + rtcm_msgs if rtcm_msgs else ''}
+                    </div>
+                </div>
+            """.replace('\n', ' ').replace("'", "\\'")
+            
+            # Create safe marker ID
+            marker_id = caster['name'].replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_').replace('\\', '_')
+            
+            # Store marker ID mapping for updates
+            self.map_marker_ids[marker_id] = caster['name']
+            
+            markers_js += f"""
+            // Coverage area (20 km radius)
+            L.circle([{lat}, {lon}], {{
+                radius: 20000,  // 20 km in meters
+                color: '{status_color}',
+                fillColor: '{status_color}',
+                fillOpacity: 0.1,
+                weight: 1,
+                opacity: 0.4
+            }}).addTo(map);
+            
+            // Station marker
+            markers['{marker_id}'] = L.circleMarker([{lat}, {lon}], {{
+                radius: 8,
+                fillColor: '{status_color}',
+                color: '#ffffff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.9
+            }}).addTo(map).bindPopup('{popup_content}');
+            """
+        
         html = f"""
         <!DOCTYPE html>
         <html>
@@ -850,39 +1323,210 @@ class NTRIPCheckerPro(QWidget):
             <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
             <style>
                 html,body,#map{{height:100%;margin:0;}}
-                .leaflet-popup-content, .leaflet-popup-content-wrapper {{
-                    color: #ffffff !important;
-                    background: #ffffff !important;
+                .leaflet-popup-content-wrapper {{
+                    border-radius: 8px;
+                }}
+                .coverage-legend {{
+                    position: absolute;
+                    bottom: 30px;
+                    right: 10px;
+                    background: rgba(255, 255, 255, 0.95);
+                    padding: 10px 15px;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                    font-family: Arial, sans-serif;
+                    font-size: 12px;
+                    color: #333;
+                    z-index: 1000;
+                }}
+                .coverage-legend-title {{
+                    font-weight: bold;
+                    margin-bottom: 5px;
+                    font-size: 13px;
                 }}
             </style>
         </head>
         <body>
         <div id="map"></div>
+        <div class="coverage-legend">
+            <div class="coverage-legend-title">📡 RTK Coverage</div>
+            <div>Radius: 20 km</div>
+        </div>
         <script>
-        var map = L.map('map').setView([{lat}, {lon}], 13);
+        var map = L.map('map').setView([{center_lat}, {center_lon}], {'10' if not use_bounds else '2'});
         L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
             maxZoom: 19,
             attribution: '&copy; OpenStreetMap contributors'
         }}).addTo(map);
-                L.marker([{lat}, {lon}]).addTo(map)
-                    .bindPopup(
-                        "<div style='background:#ffffff;padding:6px;font-family:Arial,sans-serif;'>"
-                        + "<div style='font-weight:bold;color:#000000 !important;margin-bottom:4px;'>{name_esc}</div>"
-                        + "<div style='color:#000000 !important;'>Lat: {lat}</div>"
-                        + "<div style='color:#000000 !important;'>Lon: {lon}</div>"
-                        + "<div style='color:#000000 !important;'>Alt: {(alt if alt is not None else '-') } m</div>"
-                        + "</div>"
-                    )
-          .openPopup();
+        
+        {'// Fit map to show all markers' if use_bounds else ''}
+        {'map.fitBounds([' + bounds_sw + ', ' + bounds_ne + '], {padding: [50, 50]});' if use_bounds else ''}
+        
+        // Store marker references for updates
+        var markers = {{}};
+        
+        {markers_js}
+        
+        // Function to update popup content for a specific marker
+        function updatePopup(markerId, statusColor, statusText, uptime, bps, satCount, satDetails, rtcmMsgs) {{
+            var marker = markers[markerId];
+            if (marker && marker.isPopupOpen()) {{
+                // Get current popup content and update only dynamic parts
+                var popup = marker.getPopup();
+                var content = popup.getContent();
+                
+                // Update status text and color only (leave emoji icons untouched)
+                content = content.replace(/(<span style='color:#[0-9A-Fa-f]{{6}};font-weight:bold;'>)[^<]+(<\/span>)/, 
+                    function(match, p1, p2) {{ return p1 + statusText + p2; }});
+                content = content.replace(/(color:)#[0-9A-Fa-f]{{6}}(;font-weight:bold;'>)/, 
+                    function(match, p1, p2) {{ return p1 + statusColor + p2; }});
+                
+                // Update uptime
+                content = content.replace(/(<b>Uptime:<\/b> )[^<]+(<br>)/, function(match, p1, p2) {{
+                    return p1 + uptime + p2;
+                }});
+                
+                // Update data rate value
+                content = content.replace(/(<span id='data-rate-value'>)\d+(<\/span>)/, 
+                    function(match, p1, p2) {{ return p1 + bps + p2; }});
+                
+                // Update satellites - match entire satellite section properly
+                if (satCount > 0) {{
+                    // Match satellite count and all details up to the next section or end
+                    var satRegex = /<hr[^>]*><b>🛰️ Satellites:<\/b> \d+.*?<br>(?=<hr|<\/div>)/s;
+                    var newSatSection = '<hr style="margin:6px 0;border:none;border-top:1px solid #ddd;"><b>🛰️ Satellites:</b> ' + satCount + satDetails + '<br>';
+                    
+                    if (content.match(satRegex)) {{
+                        // Replace existing section
+                        content = content.replace(satRegex, newSatSection);
+                    }} else {{
+                        // Add new section before RTCM or at end
+                        var rtcmPos = content.indexOf('<hr style="margin:6px 0;border:none;border-top:1px solid #ddd;"><b>📡 RTCM:</b>');
+                        if (rtcmPos > 0) {{
+                            content = content.substring(0, rtcmPos) + newSatSection + content.substring(rtcmPos);
+                        }} else {{
+                            content = content.replace(/(<\/div>\s*<\/div>\s*)$/, newSatSection + '$1');
+                        }}
+                    }}
+                }} else {{
+                    // Remove satellite section if no satellites
+                    content = content.replace(/<hr[^>]*><b>🛰️ Satellites:<\/b>.*?<br>(?=<hr|<\/div>)/s, '');
+                }}
+                
+                // Update RTCM messages
+                if (rtcmMsgs) {{
+                    if (content.includes('<b>📡 RTCM:</b>')) {{
+                        content = content.replace(/(<b>📡 RTCM:<\/b> )[^<]+(?=<)/, function(match, p1) {{ 
+                            return p1 + rtcmMsgs; 
+                        }});
+                    }} else {{
+                        // Add RTCM section if it wasn't there before
+                        content = content.replace(/(<\/div>\s*<\/div>\s*)$/, 
+                            '<hr style="margin:6px 0;border:none;border-top:1px solid #ddd;"><b>📡 RTCM:</b> ' + rtcmMsgs + '</div></div>');
+                    }}
+                }} else {{
+                    // Remove RTCM section if no messages
+                    content = content.replace(/<hr[^>]*><b>📡 RTCM:<\/b>[^<]*/, '');
+                }}
+                
+                popup.setContent(content);
+            }}
+        }}
         </script>
         </body>
         </html>
         """
         self.map_view.setHtml(html)
 
+    def update_map_popups(self):
+        """Update popup content for all markers with open popups - called every second"""
+        if not hasattr(self, 'map_marker_ids') or not self.map_marker_ids:
+            return
+        
+        # Update each marker's popup if it's open
+        for marker_id, caster_name in self.map_marker_ids.items():
+            caster = next((c for c in self.casters if c.get('name') == caster_name), None)
+            if not caster:
+                continue
+            
+            # Get real-time data
+            client = self.clients.get(caster_name)
+            if client and getattr(client, 'running', False):
+                status_color = '#4CAF50'
+                status_icon = '🟢'
+                status_text = 'Connected'
+                
+                start = self.start_times.get(caster_name)
+                if start:
+                    uptime = datetime.now() - start
+                    uptime_str = self.format_timedelta(uptime)
+                else:
+                    uptime_str = 'N/A'
+                
+                # Calculate data rate (bytes per second)
+                # NOTE: We use separate tracking from update_ui() to avoid interference
+                if not hasattr(self, 'map_last_bytes'):
+                    self.map_last_bytes = {}
+                
+                total = getattr(client, "total_bytes", 0)
+                last = self.map_last_bytes.get(caster_name, total)  # Initialize to current if first time
+                bps = total - last
+                self.map_last_bytes[caster_name] = total  # UPDATE for next calculation!
+            else:
+                status_color = '#F44336'
+                status_icon = '🔴'
+                status_text = 'Disconnected'
+                uptime_str = '-'
+                bps = 0
+            
+            # Get satellite count
+            sat_count = 0
+            sat_details = ''
+            if caster_name in self.satellite_stats:
+                sat_data = self.satellite_stats[caster_name]
+                sat_count = sum(len(sats) for sats in sat_data.values())
+                sat_breakdown = []
+                for const in ['GPS', 'Galileo', 'GLONASS', 'BeiDou', 'QZSS', 'SBAS']:
+                    count = len(sat_data.get(const, set()))
+                    if count > 0:
+                        sat_breakdown.append(f"{const}: {count}")
+                if sat_breakdown:
+                    sat_details = '<br>' + ', '.join(sat_breakdown)
+            
+            # Get RTCM messages
+            rtcm_msgs = ''
+            if caster_name in self.rtcm_stats:
+                msg_types = sorted(self.rtcm_stats[caster_name].keys(), key=lambda x: str(x))
+                if msg_types:
+                    rtcm_msgs = ', '.join(str(m) for m in msg_types[:10])
+                    if len(msg_types) > 10:
+                        rtcm_msgs += f', ... ({len(msg_types)} total)'
+            
+            # Escape strings for JavaScript
+            uptime_str = uptime_str.replace("'", "\\'")
+            sat_details = sat_details.replace("'", "\\'")
+            rtcm_msgs = rtcm_msgs.replace("'", "\\'")
+            status_text = status_text.replace("'", "\\'")
+            
+            # Call JavaScript function to update popup (no emoji icons to avoid Unicode rendering issues)
+            js_code = f"updatePopup('{marker_id}', '{status_color}', '{status_text}', '{uptime_str}', {bps}, {sat_count}, '{sat_details}', '{rtcm_msgs}');"
+            
+            try:
+                self.map_view.page().runJavaScript(js_code)
+            except Exception:
+                logging.debug(f"Failed to update popup for {marker_id}", exc_info=True)
+
     def on_tab_changed(self, index):
         if self.tabs.tabText(index) == "Map":
             self.update_map_view()
+            # Setup JavaScript message handler for marker clicks
+            if hasattr(self, 'map_view'):
+                try:
+                    from PyQt6.QtWebChannel import QWebChannel
+                    # Note: Full implementation would require QWebChannel setup
+                    # For now, markers will show popups on click
+                except ImportError:
+                    pass
 
     # ---------- Timers ----------
     def init_timers(self):
@@ -897,15 +1541,8 @@ class NTRIPCheckerPro(QWidget):
         # populate combobox after loading casters
         for c in self.casters:
             self.msg_caster_combo.addItem(c.get("name", ""))
-            try:
-                # add to map combobox if available
-                if hasattr(self, 'map_caster_combo'):
-                    self.map_caster_combo.addItem(c.get("name", ""))
-                # add to satellites combobox if available
-                if hasattr(self, 'sat_caster_combo'):
-                    self.sat_caster_combo.addItem(c.get("name", ""))
-            except Exception:
-                logging.debug("Failed adding caster to comboboxes", exc_info=True)
+            self.map_caster_combo.addItem(c.get("name", ""))
+            self.sat_caster_combo.addItem(c.get("name", ""))
 
     def start_connection(self, caster):
         name = caster["name"]
@@ -931,16 +1568,10 @@ class NTRIPCheckerPro(QWidget):
                 json.dump(self.casters, f, indent=2, ensure_ascii=False)
             self._insert_caster_row(data)
             self.start_connection(data)
-            # add to messages combobox
+            # add to all comboboxes
             self.msg_caster_combo.addItem(data.get("name", ""))
-            # add to map and satellites comboboxes as well
-            try:
-                if hasattr(self, 'map_caster_combo'):
-                    self.map_caster_combo.addItem(data.get("name", ""))
-                if hasattr(self, 'sat_caster_combo'):
-                    self.sat_caster_combo.addItem(data.get("name", ""))
-            except Exception:
-                logging.debug("Failed to add new caster to comboboxes", exc_info=True)
+            self.map_caster_combo.addItem(data.get("name", ""))
+            self.sat_caster_combo.addItem(data.get("name", ""))
 
     def remove_caster_by_name(self, name):
         confirm = QMessageBox.question(
@@ -975,22 +1606,16 @@ class NTRIPCheckerPro(QWidget):
                     logging.debug("Error stopping client on remove", exc_info=True)
         except Exception:
             logging.debug("Error removing client entry", exc_info=True)
-        # remove from messages combobox
+        # remove from all comboboxes
         idx = self.msg_caster_combo.findText(name)
         if idx >= 0:
             self.msg_caster_combo.removeItem(idx)
-        # remove from map and satellites comboboxes
-        try:
-            if hasattr(self, 'map_caster_combo'):
-                idx2 = self.map_caster_combo.findText(name)
-                if idx2 >= 0:
-                    self.map_caster_combo.removeItem(idx2)
-            if hasattr(self, 'sat_caster_combo'):
-                idx3 = self.sat_caster_combo.findText(name)
-                if idx3 >= 0:
-                    self.sat_caster_combo.removeItem(idx3)
-        except Exception:
-            logging.debug("Failed removing caster from comboboxes", exc_info=True)
+        idx2 = self.map_caster_combo.findText(name)
+        if idx2 >= 0:
+            self.map_caster_combo.removeItem(idx2)
+        idx3 = self.sat_caster_combo.findText(name)
+        if idx3 >= 0:
+            self.sat_caster_combo.removeItem(idx3)
 
     # ---------- Cleanup ----------
     def cleanup(self):
@@ -1205,6 +1830,19 @@ class NTRIPCheckerPro(QWidget):
                 self.caster_list.setItem(r, 5, QTableWidgetItem(self.format_timedelta(uptime)))
             else:
                 self.caster_list.setItem(r, 5, QTableWidgetItem("-"))
+        
+        # Update detail panel if a caster is selected
+        if self.selected_caster and hasattr(self, 'detail_panel'):
+            self.update_detail_panel()
+        
+        # Update map popups if Map tab is active
+        if hasattr(self, 'tabs') and hasattr(self, 'map_tab'):
+            try:
+                if self.tabs.currentWidget() == self.map_tab and hasattr(self, 'map_view'):
+                    self.update_map_popups()
+            except Exception:
+                logging.debug("Failed to update map popups", exc_info=True)
+        
         # Auto-refresh removed - UI updates every second via update_display()
         # No automatic reconnection - user has full control
 
@@ -1224,10 +1862,27 @@ class NTRIPCheckerPro(QWidget):
             logging.info("All casters already connected")
 
     # ---------- Messages ----------
+    def close_detail_panel(self):
+        """Close the caster detail panel"""
+        if hasattr(self, 'detail_panel'):
+            self.detail_panel.hide()
+        self.selected_caster = None
+        # Clear selection in table
+        if hasattr(self, 'caster_list'):
+            self.caster_list.clearSelection()
+    
     def on_caster_selected(self, row, _col):
         try:
-            self.selected_caster = self.caster_list.item(row, 0).text()
-            self.tabs.setCurrentWidget(self.msg_tab)
+            clicked_caster = self.caster_list.item(row, 0).text()
+            
+            # Toggle: if clicking the same caster, close the panel
+            if self.selected_caster == clicked_caster and hasattr(self, 'detail_panel') and self.detail_panel.isVisible():
+                self.close_detail_panel()
+                return
+            
+            self.selected_caster = clicked_caster
+            # Stay on Casters tab, show detail panel instead
+            self.update_detail_panel()
             # update comboboxes to match selected caster
         except Exception as e:
             logging.exception("Error in on_caster_selected")
@@ -1294,15 +1949,14 @@ class NTRIPCheckerPro(QWidget):
             color = get_color_for_msg_type(msg_type)
             msg_type_item = QTableWidgetItem(str(msg_type))
             msg_type_item.setBackground(QColor(color))
-            msg_type_item.setForeground(QColor("white"))
+            # Use automatic text color based on background luminance
+            text_color = get_text_color_for_background(color)
+            msg_type_item.setForeground(QColor(text_color))
             self.msg_table.setItem(row, 0, msg_type_item)
             self.msg_table.setItem(row, 1, QTableWidgetItem(info["last"]))
             self.msg_table.setItem(row, 2, QTableWidgetItem(str(info["count"])))
             total += info["count"]
         self.msg_total_label.setText(f"Total messages: {total}")
-        # update pie chart
-        html = self.generate_pie_chart_svg(caster)
-        self.msg_chart_view.setHtml(html)
 
     def on_msg_caster_changed(self, caster_name):
         # called when user changes selection in Messages combobox
@@ -1318,6 +1972,16 @@ class NTRIPCheckerPro(QWidget):
                     self.map_caster_combo.blockSignals(False)
             except Exception:
                 logging.debug("Failed syncing map combobox from messages", exc_info=True)
+            # sync satellites combobox to same caster
+            try:
+                if hasattr(self, 'sat_caster_combo'):
+                    self.sat_caster_combo.blockSignals(True)
+                    idx2 = self.sat_caster_combo.findText(caster_name)
+                    if idx2 >= 0:
+                        self.sat_caster_combo.setCurrentIndex(idx2)
+                    self.sat_caster_combo.blockSignals(False)
+            except Exception:
+                logging.debug("Failed syncing satellites combobox from messages", exc_info=True)
             self.update_messages_view()
         else:
             self.selected_caster = None
@@ -1337,6 +2001,16 @@ class NTRIPCheckerPro(QWidget):
                 self.msg_caster_combo.blockSignals(False)
             except Exception:
                 logging.debug("Failed syncing messages combobox from map", exc_info=True)
+            # sync satellites combobox to same caster
+            try:
+                if hasattr(self, 'sat_caster_combo'):
+                    self.sat_caster_combo.blockSignals(True)
+                    idx2 = self.sat_caster_combo.findText(caster_name)
+                    if idx2 >= 0:
+                        self.sat_caster_combo.setCurrentIndex(idx2)
+                    self.sat_caster_combo.blockSignals(False)
+            except Exception:
+                logging.debug("Failed syncing satellites combobox from map", exc_info=True)
             self.update_map_view()
         else:
             self.selected_caster = None
@@ -1347,94 +2021,197 @@ class NTRIPCheckerPro(QWidget):
         """Called when user changes selection in Satellites combobox"""
         if caster_name and caster_name != "(none)":
             self.selected_caster = caster_name
+            # sync messages combobox to same caster
+            try:
+                self.msg_caster_combo.blockSignals(True)
+                idx = self.msg_caster_combo.findText(caster_name)
+                if idx >= 0:
+                    self.msg_caster_combo.setCurrentIndex(idx)
+                self.msg_caster_combo.blockSignals(False)
+            except Exception:
+                logging.debug("Failed syncing messages combobox from satellites", exc_info=True)
+            # sync map combobox to same caster
+            try:
+                if hasattr(self, 'map_caster_combo'):
+                    self.map_caster_combo.blockSignals(True)
+                    idx2 = self.map_caster_combo.findText(caster_name)
+                    if idx2 >= 0:
+                        self.map_caster_combo.setCurrentIndex(idx2)
+                    self.map_caster_combo.blockSignals(False)
+            except Exception:
+                logging.debug("Failed syncing map combobox from satellites", exc_info=True)
             self.update_satellites_view()
         else:
             self.selected_caster = None
-            self.sat_chart_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>No caster selected.</h3>")
-            # Reset all counts to 0
-            for count_label in self.constellation_cards.values():
-                count_label.setText("Satellites\n0")
+            self.sat_table.setRowCount(0)
+            self.sat_total_label.setText("Total satellites: 0")
     
-    def show_satellite_debug(self):
-        """Show debug information about satellite stats"""
-        debug_info = "Satellite Stats Debug Info:\n\n"
+    def on_constellation_selected(self, row, _col):
+        """Handle constellation selection in Satellites tab"""
+        try:
+            constellation = self.sat_table.item(row, 0).text()
+            
+            # Toggle: if clicking the same constellation, close the panel
+            if self.selected_constellation == constellation and hasattr(self, 'sat_detail_panel') and self.sat_detail_panel.isVisible():
+                self.close_constellation_detail_panel()
+                return
+            
+            self.selected_constellation = constellation
+            self.update_constellation_detail_panel()
+        except Exception as e:
+            logging.exception("Error in on_constellation_selected")
+    
+    def close_constellation_detail_panel(self):
+        """Close the constellation detail panel"""
+        if hasattr(self, 'sat_detail_panel'):
+            self.sat_detail_panel.hide()
+        self.selected_constellation = None
+        # Clear selection in table
+        if hasattr(self, 'sat_table'):
+            self.sat_table.clearSelection()
+    
+    def update_constellation_detail_panel(self):
+        """Update the constellation detail panel with information about selected constellation"""
+        if not self.selected_constellation or not self.selected_caster:
+            return
         
-        if not self.satellite_stats:
-            debug_info += "No satellite data collected yet.\n"
+        if self.selected_caster not in self.satellite_stats:
+            return
+        
+        sat_data = self.satellite_stats[self.selected_caster]
+        sig_data = self.signal_stats.get(self.selected_caster, {})
+        
+        # Show panel
+        if hasattr(self, 'sat_detail_panel'):
+            self.sat_detail_panel.show()
+        
+        # Constellation colors
+        colors = {
+            'GPS': '#4DAF4A',
+            'Galileo': '#377EB8',
+            'GLONASS': '#E41A1C',
+            'BeiDou': '#FF7F00',
+            'QZSS': '#984EA3',
+            'SBAS': '#FFFF33'
+        }
+        
+        # Update header with color
+        color = colors.get(self.selected_constellation, '#ffffff')
+        self.sat_detail_header.setText(f"<span style='color:{color}'>{self.selected_constellation}</span>")
+        
+        # Get constellation description
+        description = get_constellation_description(self.selected_constellation)
+        self.sat_detail_description.setText(description)
+        
+        # Get satellite data for this constellation
+        satellites = sat_data.get(self.selected_constellation, set())
+        sat_count = len(satellites)
+        
+        # Calculate total for percentage
+        total_sats = sum(len(sat_data.get(const, set())) for const in ['GPS', 'Galileo', 'GLONASS', 'BeiDou', 'QZSS', 'SBAS'])
+        percentage = (sat_count / total_sats * 100) if total_sats > 0 else 0
+        
+        # Update stats
+        stats_text = f"""<b>Satellites:</b> {sat_count}<br>
+<b>Percentage:</b> {percentage:.1f}%<br>
+<b>Total tracked:</b> {total_sats}"""
+        self.sat_detail_stats.setText(stats_text)
+        
+        # Update PRN list
+        if satellites:
+            # Sort and format PRN numbers
+            prn_list = sorted(str(prn) for prn in satellites)
+            # Group into lines of ~8 PRNs
+            prn_lines = []
+            for i in range(0, len(prn_list), 8):
+                prn_lines.append(", ".join(prn_list[i:i+8]))
+            prn_text = "<br>".join(prn_lines)
+            self.sat_detail_prns.setText(prn_text)
         else:
-            for caster_name, constellations in self.satellite_stats.items():
-                debug_info += f"Caster: {caster_name}\n"
-                for const_name, sat_set in constellations.items():
-                    if sat_set:
-                        debug_info += f"  {const_name}: {len(sat_set)} satellites - PRNs: {sorted(sat_set)}\n"
-                    else:
-                        debug_info += f"  {const_name}: 0 satellites\n"
-                    
-                    # Show signal information
-                    if caster_name in self.signal_stats:
-                        signals = self.signal_stats[caster_name].get(const_name, set())
-                        if signals:
-                            debug_info += f"    Signals: {', '.join(sorted(signals))}\n"
-                debug_info += "\n"
+            self.sat_detail_prns.setText("No satellites detected")
         
-        # Also show RTCM message types received
-        if self.selected_caster and self.selected_caster in self.rtcm_stats:
-            debug_info += f"\nRTCM Messages for {self.selected_caster}:\n"
-            for msg_type in sorted(self.rtcm_stats[self.selected_caster].keys(), key=lambda x: str(x)):
-                count = self.rtcm_stats[self.selected_caster][msg_type]['count']
-                debug_info += f"  {msg_type}: {count} messages\n"
-        
-        # Show debug message data if available
-        if hasattr(self, '_last_beidou_debug'):
-            debug_info += f"\n\nLast BeiDou MSM Debug Data:\n{self._last_beidou_debug}\n"
-        
-        QMessageBox.information(self, "Satellite Debug Info", debug_info)
-        logging.info(debug_info)
-    
-    def clear_satellite_data(self):
-        """Clear all accumulated satellite data and refresh view"""
-        self.satellite_stats.clear()
-        self.signal_stats.clear()
-        # Reset view
-        self.sat_chart_view.setHtml("<h3 style='color:#ffffff;margin:1rem;'>Satellite data cleared. Reconnect to casters to start tracking.</h3>")
-        for count_label in self.constellation_cards.values():
-            count_label.setText("Satellites\n0")
-        self.sat_last_update.setText("Last update: Never")
-        logging.info("Satellite data cleared")
+        # Update signals
+        signals = sig_data.get(self.selected_constellation, set())
+        if signals:
+            sig_list = sorted(signals)
+            sig_text = "<br>".join([f"• {sig}" for sig in sig_list])
+            self.sat_detail_signals.setText(sig_text)
+        else:
+            self.sat_detail_signals.setText("No signal data")
     
     def update_satellites_view(self):
-        """Update satellite view for selected caster"""
-        try:
-            # Safety checks - ensure GUI is ready
-            if not hasattr(self, 'constellation_cards') or not self.constellation_cards:
-                return
-            if not hasattr(self, 'sat_chart_view'):
-                return
-            if not self.selected_caster or self.selected_caster not in self.satellite_stats:
-                return
+        """Update satellite table for selected caster"""
+        caster = self.selected_caster
+        self.sat_table.setRowCount(0)
+        
+        if not caster or caster not in self.satellite_stats:
+            # sync combobox
+            self.sat_caster_combo.blockSignals(True)
+            self.sat_caster_combo.setCurrentIndex(0)  # (none)
+            self.sat_caster_combo.blockSignals(False)
+            self.sat_total_label.setText("Total satellites: 0")
+            return
+        
+        # sync combobox to current caster
+        self.sat_caster_combo.blockSignals(True)
+        idx = self.sat_caster_combo.findText(caster)
+        if idx >= 0:
+            self.sat_caster_combo.setCurrentIndex(idx)
+        self.sat_caster_combo.blockSignals(False)
+        
+        sat_data = self.satellite_stats[caster]
+        sig_data = self.signal_stats.get(caster, {})
+        
+        # Constellation colors
+        colors = {
+            'GPS': '#4DAF4A',
+            'Galileo': '#377EB8',
+            'GLONASS': '#E41A1C',
+            'BeiDou': '#FF7F00',
+            'QZSS': '#984EA3',
+            'SBAS': '#FFFF33'
+        }
+        
+        # Calculate total satellites
+        total_sats = sum(len(sat_data.get(const, set())) for const in ['GPS', 'Galileo', 'GLONASS', 'BeiDou', 'QZSS', 'SBAS'])
+        
+        # Add rows for each constellation
+        for const_name in ['GPS', 'Galileo', 'GLONASS', 'BeiDou', 'QZSS', 'SBAS']:
+            satellites = sat_data.get(const_name, set())
+            sat_count = len(satellites)
             
-            sat_data = self.satellite_stats[self.selected_caster]
+            # Get signals
+            signals = sig_data.get(const_name, set())
+            sig_text = ", ".join(sorted(signals)) if signals else "-"
             
-            # Update last update timestamp
-            now = datetime.now().strftime("%H:%M:%S")
-            self.sat_last_update.setText(f"Last update: {now}")
+            # Calculate percentage
+            percentage = (sat_count / total_sats * 100) if total_sats > 0 else 0
             
-            # Update constellation cards
-            total_sats = 0
-            for const_name, count_label in self.constellation_cards.items():
-                count = len(sat_data.get(const_name, set()))
-                count_label.setText(f"Satellites\n{count}")
-                total_sats += count
+            row = self.sat_table.rowCount()
+            self.sat_table.insertRow(row)
             
-            # Generate donut chart
-            chart_html = self.generate_satellite_donut_chart(sat_data, total_sats)
-            self.sat_chart_view.setHtml(chart_html)
-        except Exception as e:
-            logging.exception("Error updating satellites view")
-            print(f"Error in update_satellites_view: {e}")
+            # Constellation name (colored)
+            color = colors.get(const_name, '#ffffff')
+            const_item = QTableWidgetItem(const_name)
+            const_item.setBackground(QColor(color))
+            # Use automatic text color based on background luminance
+            text_color = get_text_color_for_background(color)
+            const_item.setForeground(QColor(text_color))
+            self.sat_table.setItem(row, 0, const_item)
+            
+            # Satellite count
+            self.sat_table.setItem(row, 1, QTableWidgetItem(str(sat_count)))
+            
+            # Signals
+            self.sat_table.setItem(row, 2, QTableWidgetItem(sig_text))
+            
+            # Percentage
+            self.sat_table.setItem(row, 3, QTableWidgetItem(f"{percentage:.1f}%"))
+        
+        self.sat_total_label.setText(f"Total satellites: {total_sats}")
     
     def generate_satellite_donut_chart(self, sat_data, total):
-        """Generate SVG donut chart for satellites"""
+        """Generate SVG donut chart for satellites (keeping for compatibility)"""
         if total == 0:
             return "<h3 style='color:#ffffff;margin:1rem;'>No satellite data available yet.</h3>"
         
@@ -1777,53 +2554,230 @@ class NTRIPCheckerPro(QWidget):
                 QMessageBox.critical(self, "Save Error", f"Failed to save casters:\n\n{e}")
                 logging.exception("Failed to save casters after adding from sourcetable")
 
+    # ---------- Detail Panel ----------
+    def close_detail_panel(self):
+        """Close the detail panel and clear selection"""
+        if hasattr(self, 'detail_panel'):
+            self.detail_panel.hide()
+        self.selected_caster = None
+        # Clear table selection
+        if hasattr(self, 'caster_list'):
+            self.caster_list.clearSelection()
+    
+    def close_message_detail_panel(self):
+        """Close the message detail panel and clear selection"""
+        if hasattr(self, 'msg_detail_panel'):
+            self.msg_detail_panel.hide()
+        self.selected_message = None
+        if hasattr(self, 'msg_table'):
+            self.msg_table.clearSelection()
+    
+    def on_message_selected(self, row, _col):
+        """Handle message selection in Messages tab"""
+        try:
+            msg_type = self.msg_table.item(row, 0).text()
+            
+            # Toggle: if clicking the same message, close the panel
+            if self.selected_message == msg_type and hasattr(self, 'msg_detail_panel') and self.msg_detail_panel.isVisible():
+                self.close_message_detail_panel()
+                return
+            
+            self.selected_message = msg_type
+            self.update_message_detail_panel()
+        except Exception as e:
+            logging.exception("Error in on_message_selected")
+    
+    def update_message_detail_panel(self):
+        """Update the message detail panel with information about selected message"""
+        if not self.selected_message or not self.selected_caster:
+            return
+        
+        if self.selected_caster not in self.rtcm_stats:
+            return
+        
+        stats = self.rtcm_stats[self.selected_caster]
+        if self.selected_message not in stats:
+            return
+        
+        msg_info = stats[self.selected_message]
+        
+        # Show panel
+        if hasattr(self, 'msg_detail_panel'):
+            self.msg_detail_panel.show()
+        
+        # Update header
+        self.msg_detail_header.setText(f"RTCM {self.selected_message}")
+        
+        # Get message description
+        description = get_rtcm_description(self.selected_message)
+        self.msg_detail_description.setText(description)
+        
+        # Calculate statistics
+        count = msg_info["count"]
+        last_time = msg_info["last"]
+        
+        # Calculate percentage
+        total_messages = sum(info["count"] for info in stats.values())
+        percentage = (count / total_messages * 100) if total_messages > 0 else 0
+        
+        # Update stats
+        stats_text = f"""<b>Count:</b> {count:,}<br>
+<b>Percentage:</b> {percentage:.1f}%<br>
+<b>Last received:</b> {last_time}"""
+        self.msg_detail_stats.setText(stats_text)
+    
+    def update_detail_panel(self):
+        """Update detail panel with selected caster information"""
+        try:
+            if not self.selected_caster:
+                self.detail_panel.hide()
+                return
+            
+            self.detail_panel.show()
+            
+            # Find caster
+            caster = next((c for c in self.casters if c.get("name") == self.selected_caster), None)
+            if not caster:
+                self.detail_panel.hide()
+                return
+            
+            # Update header
+            name = caster.get("name", "Unknown")
+            host = caster.get("host", "")
+            port = caster.get("port", "")
+            mount = caster.get("mount", "")
+            self.detail_header.setText(f"▶ {name}")
+            self.detail_status.setText(f"📍 {host}:{port}/{mount}")
+            
+            # Get client info
+            client = self.clients.get(self.selected_caster)
+            if client and getattr(client, "running", False):
+                # Get status
+                status_item = None
+                for r in range(self.caster_list.rowCount()):
+                    if self.caster_list.item(r, 0).text() == self.selected_caster:
+                        status_item = self.caster_list.item(r, 3)
+                        break
+                
+                status_text = status_item.text() if status_item else "Unknown"
+                
+                # Get data rate from table (updated every second in update_ui)
+                bps = 0
+                for r in range(self.caster_list.rowCount()):
+                    if self.caster_list.item(r, 0).text() == self.selected_caster:
+                        bps_item = self.caster_list.item(r, 4)
+                        if bps_item:
+                            try:
+                                bps = int(bps_item.text())
+                            except ValueError:
+                                bps = 0
+                        break
+                
+                # Get total bytes
+                total = getattr(client, "total_bytes", 0)
+                
+                # Get uptime
+                start = self.start_times.get(self.selected_caster)
+                uptime_str = "00:00:00"
+                if start:
+                    uptime = datetime.now() - start
+                    uptime_str = self.format_timedelta(uptime)
+                
+                # Format total data
+                total_mb = total / (1024 * 1024)
+                
+                stats_text = f"""Status: {status_text}
+Uptime: {uptime_str}
+Data Rate: {bps} B/s
+Total Received: {total_mb:.2f} MB"""
+                self.detail_stats.setText(stats_text)
+            else:
+                self.detail_stats.setText("Status: 🔴 Offline\nNo data available")
+            
+            # Update RTCM messages
+            if self.selected_caster in self.rtcm_stats:
+                rtcm_msgs = self.rtcm_stats[self.selected_caster]
+                # Get all messages sorted by message number
+                sorted_msgs = sorted(rtcm_msgs.items(), key=lambda x: str(x[0]))
+                if sorted_msgs:
+                    rtcm_text = ""
+                    max_count = max(info["count"] for _, info in sorted_msgs)
+                    for msg_type, info in sorted_msgs:
+                        count = info["count"]
+                        # Ensure at least 1 bar if count > 0
+                        bar_length = max(1, int((count / max_count) * 8)) if max_count > 0 and count > 0 else 0
+                        bar = "█" * bar_length
+                        rtcm_text += f"{str(msg_type):<4} {count:>6}  {bar}\n"
+                    self.detail_rtcm.setText(rtcm_text.strip())
+                else:
+                    self.detail_rtcm.setText("No messages yet")
+            else:
+                self.detail_rtcm.setText("No data")
+            
+            # Update satellites
+            if self.selected_caster in self.satellite_stats:
+                sat_data = self.satellite_stats[self.selected_caster]
+                total_sats = sum(len(sats) for sats in sat_data.values())
+                if total_sats > 0:
+                    sat_text = f"🛰️ {total_sats} satellites tracked\n"
+                    for const_name in ['GPS', 'Galileo', 'GLONASS', 'BeiDou', 'QZSS', 'SBAS']:
+                        count = len(sat_data.get(const_name, set()))
+                        if count > 0:
+                            sat_text += f"   {const_name}: {count}   "
+                    self.detail_satellites.setText(sat_text.strip())
+                else:
+                    self.detail_satellites.setText("🛰️ No satellites tracked")
+            else:
+                self.detail_satellites.setText("🛰️ No satellite data")
+        except Exception:
+            logging.debug("Error updating detail panel", exc_info=True)
+    
     # ---------- Utils ----------
     def format_timedelta(self, td: timedelta):
         s = int(td.total_seconds())
         return f"{s // 3600:02}:{(s % 3600) // 60:02}:{s % 60:02}"
 
 # ---------- Sourcetable Fetch Worker ----------
-class SourcetableFetchWorker(threading.Thread):
-    """Worker thread for fetching NTRIP sourcetable"""
+from PyQt6.QtCore import QObject, pyqtSignal
+
+class SourcetableFetchWorker(QObject):
+    """Properly implemented worker with Qt signals"""
+    finished = pyqtSignal(list)
+    error = pyqtSignal(str)
     
     def __init__(self, host, port, user, password):
-        super().__init__(daemon=True)
+        super().__init__()
         self.host = host
         self.port = port
         self.user = user
         self.password = password
-        self.finished = None
-        self.error = None
-        
-    def run(self):
-        try:
-            mountpoints = self.fetch_sourcetable()
-            if self.finished:
-                self.finished.emit(mountpoints)
-        except Exception as e:
-            if self.error:
-                self.error.emit(str(e))
+        self._thread = None
     
-    def fetch_sourcetable(self):
-        """Fetch and parse NTRIP sourcetable"""
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(10)
-        
+    def start(self):
+        """Start the worker in a separate thread"""
+        self._thread = threading.Thread(target=self.run, daemon=True)
+        self._thread.start()
+    
+    def run(self):
+        """Run the sourcetable fetch operation"""
         try:
+            mountpoints = self._fetch_sourcetable()
+            self.finished.emit(mountpoints)
+        except Exception as e:
+            self.error.emit(str(e))
+    
+    def _fetch_sourcetable(self):
+        """Fetch sourcetable from NTRIP caster"""
+        sock = None
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(10)
             sock.connect((self.host, self.port))
             
-            # Build HTTP request
-            auth_string = base64.b64encode(f"{self.user}:{self.password}".encode()).decode()
-            request = (
-                f"GET / HTTP/1.0\r\n"
-                f"User-Agent: NTRIP NtripCheckerPRO/5.0\r\n"
-                f"Authorization: Basic {auth_string}\r\n"
-                f"\r\n"
-            )
-            
+            auth = base64.b64encode(f"{self.user}:{self.password}".encode()).decode()
+            request = f"GET / HTTP/1.1\r\nHost: {self.host}\r\nNtrip-Version: Ntrip/2.0\r\nUser-Agent: NTRIP NTRIPCheckerPro/5.2\r\nAuthorization: Basic {auth}\r\n\r\n"
             sock.sendall(request.encode())
             
-            # Read response
             response = b""
             while True:
                 chunk = sock.recv(4096)
@@ -1831,89 +2785,40 @@ class SourcetableFetchWorker(threading.Thread):
                     break
                 response += chunk
                 if len(response) > 1024 * 1024:  # 1MB limit
-                    raise Exception("Sourcetable too large")
+                    break
             
-            sock.close()
+            response_str = response.decode('utf-8', errors='ignore')
+            lines = response_str.split('\n')
             
-            # Decode response
-            response_text = response.decode('utf-8', errors='ignore')
+            mountpoints = []
+            for line in lines:
+                line = line.strip()
+                if not line or line.startswith('STR;'):
+                    parts = line.split(';')
+                    if len(parts) < 10:
+                        continue
+                    try:
+                        mp = {
+                            'mount': parts[1],
+                            'name': parts[2],
+                            'format': parts[3],
+                            'carrier': parts[5] if len(parts) > 5 else '',
+                            'nav_systems': parts[6] if len(parts) > 6 else '',
+                            'lat': float(parts[9]) if parts[9] and parts[9] != '0' else None,
+                            'lon': float(parts[10]) if parts[10] and parts[10] != '0' else None,
+                            'alt': None
+                        }
+                        mountpoints.append(mp)
+                    except (ValueError, IndexError):
+                        continue
             
-            # Check for HTTP errors
-            if 'HTTP/' in response_text[:20]:
-                status_line = response_text.split('\r\n')[0]
-                if '401' in status_line:
-                    raise Exception("Authentication failed - check credentials")
-                elif '200' not in status_line:
-                    raise Exception(f"HTTP error: {status_line}")
-            
-            # Parse sourcetable
-            return self.parse_sourcetable(response_text)
-            
-        except socket.timeout:
-            raise Exception("Connection timeout - check host and port")
-        except socket.gaierror:
-            raise Exception("Could not resolve hostname")
-        except ConnectionRefusedError:
-            raise Exception("Connection refused - check host and port")
-        except Exception as e:
-            raise Exception(str(e))
+            return mountpoints
         finally:
-            try:
-                sock.close()
-            except:
-                pass
-    
-    def parse_sourcetable(self, data):
-        """Parse NTRIP sourcetable STR entries"""
-        mountpoints = []
-        
-        for line in data.split('\n'):
-            line = line.strip()
-            if not line.startswith('STR;'):
-                continue
-            
-            parts = line.split(';')
-            if len(parts) < 11:
-                continue
-            
-            try:
-                mp = {
-                    'mount': parts[1],
-                    'name': parts[2],
-                    'format': parts[3],
-                    'carrier': parts[5] if len(parts) > 5 else '',
-                    'nav_systems': parts[6] if len(parts) > 6 else '',
-                    'lat': float(parts[9]) if parts[9] and parts[9] != '0' else None,
-                    'lon': float(parts[10]) if parts[10] and parts[10] != '0' else None,
-                    'alt': None  # Not commonly provided in sourcetable
-                }
-                mountpoints.append(mp)
-            except (ValueError, IndexError):
-                logging.debug(f"Failed to parse sourcetable line: {line}")
-                continue
-        
-        return mountpoints
-
-# Make worker signals work with Qt
-from PyQt6.QtCore import QObject, pyqtSignal as Signal
-
-class SourcetableSignals(QObject):
-    finished = Signal(list)
-    error = Signal(str)
-
-# Update worker to use Qt signals
-SourcetableFetchWorker.finished = property(lambda self: self._signals.finished if hasattr(self, '_signals') else None)
-SourcetableFetchWorker.error = property(lambda self: self._signals.error if hasattr(self, '_signals') else None)
-
-def _worker_init_original(self, host, port, user, password):
-    threading.Thread.__init__(self, daemon=True)
-    self.host = host
-    self.port = port
-    self.user = user
-    self.password = password
-    self._signals = SourcetableSignals()
-
-SourcetableFetchWorker.__init__ = _worker_init_original
+            if sock:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
 
 # ---------- Run ----------
 if __name__ == "__main__":

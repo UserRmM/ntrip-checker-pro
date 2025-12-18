@@ -1,6 +1,6 @@
-# NTRIP Checker PRO v5.1
+# NTRIP Checker PRO v5.2
 
-A professional GNSS NTRIP client application for monitoring and analyzing NTRIP caster streams. Built with PyQt6, provides real-time data visualization, RTCM message statistics, interactive mapping, and automatic mountpoint discovery from NTRIP casters.
+A professional GNSS NTRIP client application for monitoring and analyzing NTRIP caster streams. Built with PyQt6, provides real-time data visualization, RTCM message statistics, interactive mapping with RTK coverage visualization, and automatic mountpoint discovery from NTRIP casters.
 
 ## Features
 
@@ -9,7 +9,9 @@ A professional GNSS NTRIP client application for monitoring and analyzing NTRIP 
 ✅ **Real-Time Monitoring** — Live byte rate (B/s) and uptime tracking  
 ✅ **Satellite Tracking** — Real-time GNSS constellation monitoring (GPS, GLONASS, Galileo, BeiDou, QZSS, SBAS)  
 ✅ **RTCM Message Analysis** — Parse and visualize RTCM message types with constellation-colored MSM messages  
-✅ **Interactive Mapping** — Leaflet-based map display with caster location markers  
+✅ **Interactive Mapping** — Leaflet-based map with real-time updates and 20 km RTK coverage circles  
+✅ **Detail Panels** — Context-sensitive panels on all tabs showing real-time statistics  
+✅ **Real-Time Map Popups** — Auto-updating popups showing live status, data rate, satellites, and RTCM messages  
 ✅ **Dark Theme UI** — Modern dark interface with excellent contrast and readability  
 ✅ **Data Persistence** — Caster configurations saved to JSON  
 ✅ **User-Controlled Connections** — Manual connect/disconnect with no auto-reconnect after user stop  
@@ -69,7 +71,7 @@ See `requirements.txt` for full dependency list.
    ```
 4. Run the application:
    ```bash
-   python ntrip_checker_pro_v5_1.py
+   python ntrip_checker_pro_v5_2.py
    ```
 
 Or use the provided desktop shortcut (see INSTALL.md).
@@ -140,13 +142,13 @@ You can override the default `casters.json` location using the `NTRIP_CASTERS_PA
 **Windows (PowerShell - Temporary):**
 ```powershell
 $env:NTRIP_CASTERS_PATH = "D:\Path\To\Your\casters.json"
-python ntrip_checker_pro_v5_1.py
+python ntrip_checker_pro_v5_2.py
 ```
 
 **Linux/Mac:**
 ```bash
 export NTRIP_CASTERS_PATH="/path/to/your/casters.json"
-python ntrip_checker_pro_v5_1.py
+python ntrip_checker_pro_v5_2.py
 ```
 
 **Use Cases:**

@@ -2,6 +2,42 @@
 
 All notable changes to NTRIP Checker PRO are documented in this file.
 
+## [5.2] — December 2025
+
+### Added
+- **Interactive Map Enhancements** — Real-time popup updates for all map markers
+  - Live status updates (Connected/Disconnected) without closing popup
+  - Real-time uptime tracking
+  - Live data rate (B/s) display updates every second
+  - Dynamic satellite count and constellation breakdown
+  - Live RTCM message type lists
+  - Separate data rate tracking for map popups (no interference with main UI)
+- **RTK Coverage Visualization** — 20 km radius circles around each station
+  - Semi-transparent circles showing approximate RTK correction range
+  - Color-coded by station status (green for connected, red for disconnected)
+  - Visual legend showing coverage radius
+  - Auto-adjusts with station status changes
+- **Detail Panels** — Context-sensitive information panels on all tabs
+  - **Casters Tab** — Quick stats, RTCM messages, satellite counts with navigation buttons
+  - **Messages Tab** — Message type descriptions, statistics, and counter information
+  - **Satellites Tab** — Constellation details, PRN lists, detected signals, and system info
+  - Slide-out panels with close buttons
+  - Click-to-activate interaction model
+- **Map Auto-Zoom** — Dynamic bounds calculation for multiple stations
+  - Automatically fits all stations in viewport with proper padding
+  - Single station: fixed zoom level (10)
+  - Multiple stations: calculated bounds with 50px padding
+
+### Changed
+- **Map Popups** — Upgraded from static to real-time updating
+- **Map Zoom Behavior** — From fixed zoom to intelligent auto-fitting
+- **UI Interaction** — Added info labels on all tabs guiding users to click for details
+
+### Fixed
+- **Unicode Rendering** — Removed dynamic emoji updates to prevent question marks
+- **Satellite Section** — Fixed regex to properly replace entire section without duplication
+- **Data Rate Calculation** — Implemented separate tracking dictionary for map popups
+
 ## [5.1] — December 2025
 
 ### Added
