@@ -2,6 +2,50 @@
 
 All notable changes to NTRIP Checker PRO are documented in this file.
 
+## [5.3] — December 2025
+
+### Added
+- **Desktop Alerts & Notifications System**
+  - System tray icon with context menu (Show/Hide/Quit)
+  - 4 alert types: connection lost/restored, low data rate, low satellites
+  - Configurable alert thresholds and cooldown (default 5 minutes)
+  - 30-second buffer for low data rate (ignores temporary fluctuations)
+  - 15-second startup delay (prevents false positives)
+  - Per-caster, per-alert-type throttling
+- **Settings Dialog (File → Preferences)**
+  - 9 user-configurable preferences for desktop alerts
+  - Settings persistence via `settings.json`
+  - Dark theme compatible UI
+- **CSV Export System (File → Export)**
+  - Export Casters (status, uptime, data rate, coordinates)
+  - Export Messages (RTCM types with descriptions, percentages)
+  - Export Satellites (constellation counts, percentages)
+  - Export Map Data (locations with status)
+  - Export All Data (timestamped directory with all exports)
+  - UTF-8 encoding for Excel compatibility
+- **Smart Reconnect Logic**
+  - Idle timeout detection (5 sec warning, 10 sec disconnect)
+  - "Connected but no data" status indication
+  - Distinguishes network issues from mount point problems
+  - Auto-reconnect only for network errors (3 attempts, 10 sec intervals)
+  - No reconnect for: idle timeout, mount point closure, authentication errors
+  - Reconnect counter resets only when data flows (not on TCP handshake)
+
+### Changed
+- **Connection Status Tracking** — More accurate state management for alerts
+- **Uptime Counter** — Pauses when no data flows, shows "-" during idle
+- **Application Shutdown** — Properly stops all threads and hides tray icon
+
+### Fixed
+- **Data Rate Alert Bug** — Fixed calculation that always showed 0 B/s in alerts
+- **Reconnect Loop** — Fixed infinite reconnect attempts for mount point issues
+- **False Positive Alerts** — Fixed "Connection restored" alert on application startup
+- **False Positive Alerts** — Fixed "Low data rate: 0 B/s" alert on first measurement
+- **Ghost Notifications** — Fixed alerts continuing after application close
+- **Uptime Glitch** — Fixed uptime continuing when mount point stops sending data
+- **Satellite Count TypeError** — Fixed `sum()` of sets in satellite statistics
+- **Thread Shutdown** — Fixed threads not terminating properly on application exit
+
 ## [5.2] — December 2025
 
 ### Added
