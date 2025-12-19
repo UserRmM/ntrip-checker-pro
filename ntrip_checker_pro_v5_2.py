@@ -17,11 +17,12 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QTabWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
     QMessageBox, QPushButton, QHeaderView, QDialog, QFormLayout,
     QLineEdit, QSpinBox, QHBoxLayout, QSizePolicy, QComboBox, QTextBrowser, QMenuBar, QMenu,
-    QFileDialog
+    QFileDialog, QSystemTrayIcon, QCheckBox, QGroupBox
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtGui import QColor, QDesktopServices
+from PyQt6.QtGui import QColor, QDesktopServices, QIcon, QAction
+from PyQt6.QtWidgets import QMenu
 from qt_material import apply_stylesheet
 
 def get_casters_file_path():
@@ -282,7 +283,7 @@ class NTRIPClient(threading.Thread):
         self.user_stopped = False  # Track if user manually disconnected
 
     def run(self):
-        while self.reconnect_attempts <= 3 and not self.stop_event.is_set() and not self.user_stopped:
+        while not self.stop_event.is_set() and not self.user_stopped:
             try:
                 auth = base64.b64encode(f"{self.caster['user']}:{self.caster['password']}".encode()).decode()
                 request = (
@@ -300,13 +301,30 @@ class NTRIPClient(threading.Thread):
 
                 self.socket = s
                 self.running = True
-                self.reconnect_attempts = 0
+                # Don't reset reconnect_attempts yet - wait for actual data
                 self.signals.status_signal.emit(self.caster['name'], "✅ Connection OK")
+
+                # Track last data received time for idle timeout detection
+                last_data_time = datetime.now()
+                no_data_warning_sent = False
+                data_received = False  # Track if any data received
+                s.settimeout(2)  # 2 second timeout for recv()
 
                 while self.running and not self.stop_event.is_set():
                     try:
                         data = s.recv(4096)
                     except socket.timeout:
+                        # Check idle time
+                        idle_seconds = (datetime.now() - last_data_time).total_seconds()
+                        
+                        # Warn if no data for 5 seconds
+                        if idle_seconds > 5 and not no_data_warning_sent:
+                            self.signals.status_signal.emit(self.caster['name'], "⚠️ Connected but no data")
+                            no_data_warning_sent = True
+                        
+                        # Disconnect if no data for 10 seconds
+                        if idle_seconds > 10:
+                            raise Exception("IDLE_TIMEOUT: No data received for 10 seconds")
                         continue
                     except Exception:
                         # Socket error while reading - check if user stopped
@@ -317,8 +335,25 @@ class NTRIPClient(threading.Thread):
                         # Connection closed - check if user stopped
                         if self.user_stopped:
                             break
+                        # If we received data before, this is likely a mount point issue
+                        if data_received:
+                            raise Exception("MOUNT_POINT_CLOSED: Connection closed after receiving data")
                         # Otherwise treat as network error
                         raise Exception("Connection closed by server")
+                    
+                    # Update last data time and reset warning flag
+                    last_data_time = datetime.now()
+                    
+                    # Reset reconnect attempts when data is actually flowing
+                    if not data_received:
+                        data_received = True
+                        self.reconnect_attempts = 0
+                        logging.debug(f"Data flowing for {self.caster.get('name')}, reset reconnect attempts")
+                    
+                    if no_data_warning_sent:
+                        # Data flow resumed
+                        self.signals.status_signal.emit(self.caster['name'], "✅ Connection OK")
+                        no_data_warning_sent = False
                     # update counters thread-safely
                     with self.lock:
                         self.total_bytes += len(data)
@@ -351,24 +386,47 @@ class NTRIPClient(threading.Thread):
                 logging.exception("NTRIPClient error for %s", self.caster.get('name'))
                 
                 # Determine error type for user feedback
+                is_idle_timeout = "idle_timeout" in error_msg or "idle timeout" in error_msg
+                is_mount_point_closed = "mount_point_closed" in error_msg
+                
                 if "rejected" in error_msg or "401" in error_msg or "unauthorized" in error_msg:
                     error_type = "Authentication failed"
+                    should_reconnect = False  # Auth errors won't fix themselves
+                elif is_idle_timeout:
+                    error_type = "No data from mount point"
+                    should_reconnect = False  # Mount point issue, not network issue
+                    logging.info(f"Idle timeout detected for {self.caster.get('name')}, will not reconnect")
+                elif is_mount_point_closed:
+                    error_type = "Mount point disconnected"
+                    should_reconnect = False  # Mount point closed the connection
+                    logging.info(f"Mount point closed connection for {self.caster.get('name')}, will not reconnect")
                 elif "timeout" in error_msg or "timed out" in error_msg:
                     error_type = "Connection timeout"
+                    should_reconnect = True
                 elif "refused" in error_msg:
                     error_type = "Connection refused"
+                    should_reconnect = True
                 else:
                     error_type = "Network error"
+                    should_reconnect = True
                 
-                self.signals.status_signal.emit(self.caster['name'], f"⚠️ {error_type}")
-                self.reconnect_attempts += 1
-                
-                if not self.user_stopped and self.reconnect_attempts <= 3:
-                    self.signals.status_signal.emit(self.caster['name'], f"🟡 Reconnecting ({self.reconnect_attempts}/3)...")
-                    # wait with event so stop() can interrupt the sleep
-                    if self.stop_event.wait(10):
+                # Reconnect only for network issues, not for idle timeout or auth errors
+                if not self.user_stopped and should_reconnect:
+                    self.reconnect_attempts += 1
+                    logging.info(f"Reconnect attempt {self.reconnect_attempts} for {self.caster.get('name')} due to {error_type}")
+                    if self.reconnect_attempts <= 3:
+                        self.signals.status_signal.emit(self.caster['name'], f"🟡 Reconnecting ({self.reconnect_attempts}/3)...")
+                        # wait with event so stop() can interrupt the sleep
+                        if self.stop_event.wait(10):
+                            break
+                        # Continue loop to retry connection
+                        logging.debug(f"Retrying connection for {self.caster.get('name')} after wait")
+                    else:
+                        # Max reconnect attempts reached
+                        self.signals.status_signal.emit(self.caster['name'], f"🔴 Disconnected ({error_type})")
                         break
                 else:
+                    # Don't reconnect (idle timeout, auth error, or user stopped)
                     if not self.user_stopped:
                         self.signals.status_signal.emit(self.caster['name'], f"🔴 Disconnected ({error_type})")
                     break
@@ -544,6 +602,153 @@ class AboutDialog(QDialog):
             self.check_update_btn.setEnabled(True)
             self.check_update_btn.setText("Check for Updates")
 
+# ---------- Settings Dialog ----------
+class SettingsDialog(QDialog):
+    def __init__(self, parent=None, current_settings=None):
+        super().__init__(parent)
+        self.setWindowTitle("Settings")
+        self.setMinimumWidth(450)
+        
+        # Default settings
+        self.settings = current_settings or {
+            'alerts_enabled': True,
+            'alert_connection_lost': True,
+            'alert_connection_restored': True,
+            'alert_low_data_rate': True,
+            'alert_low_satellites': True,
+            'low_data_rate_threshold': 100,
+            'low_satellites_threshold': 4,
+            'alert_cooldown_minutes': 5,
+            'show_tray_icon': True
+        }
+        
+        layout = QVBoxLayout()
+        
+        # Title
+        title = QLabel("<h2>Preferences</h2>")
+        title.setStyleSheet("color: #4fc3f7; margin-bottom: 10px;")
+        layout.addWidget(title)
+        
+        # Desktop Alerts group
+        alerts_group = QGroupBox("Desktop Alerts")
+        alerts_layout = QVBoxLayout()
+        
+        self.alerts_enabled_cb = QCheckBox("Enable desktop notifications")
+        self.alerts_enabled_cb.setChecked(self.settings['alerts_enabled'])
+        self.alerts_enabled_cb.setStyleSheet("color: #ffffff; font-weight: bold;")
+        alerts_layout.addWidget(self.alerts_enabled_cb)
+        
+        alerts_layout.addSpacing(10)
+        
+        # Alert conditions
+        conditions_label = QLabel("Alert Conditions:")
+        conditions_label.setStyleSheet("color: #ffffff; margin-top: 5px;")
+        alerts_layout.addWidget(conditions_label)
+        
+        self.alert_conn_lost_cb = QCheckBox("Connection lost")
+        self.alert_conn_lost_cb.setChecked(self.settings['alert_connection_lost'])
+        self.alert_conn_lost_cb.setStyleSheet("color: #ffffff; margin-left: 20px;")
+        alerts_layout.addWidget(self.alert_conn_lost_cb)
+        
+        self.alert_conn_restored_cb = QCheckBox("Connection restored")
+        self.alert_conn_restored_cb.setChecked(self.settings['alert_connection_restored'])
+        self.alert_conn_restored_cb.setStyleSheet("color: #ffffff; margin-left: 20px;")
+        alerts_layout.addWidget(self.alert_conn_restored_cb)
+        
+        # Low data rate with spinbox
+        low_data_layout = QHBoxLayout()
+        self.alert_low_data_cb = QCheckBox("Low data rate  (< ")
+        self.alert_low_data_cb.setChecked(self.settings['alert_low_data_rate'])
+        self.alert_low_data_cb.setStyleSheet("color: #ffffff; margin-left: 20px;")
+        self.low_data_spin = QSpinBox()
+        self.low_data_spin.setRange(10, 1000)
+        self.low_data_spin.setValue(self.settings['low_data_rate_threshold'])
+        self.low_data_spin.setSuffix(" B/s)")
+        self.low_data_spin.setStyleSheet("color: #ffffff;")
+        low_data_layout.addWidget(self.alert_low_data_cb)
+        low_data_layout.addWidget(self.low_data_spin)
+        low_data_layout.addStretch()
+        alerts_layout.addLayout(low_data_layout)
+        
+        # Low satellites with spinbox
+        low_sat_layout = QHBoxLayout()
+        self.alert_low_sat_cb = QCheckBox("Low satellites  (< ")
+        self.alert_low_sat_cb.setChecked(self.settings['alert_low_satellites'])
+        self.alert_low_sat_cb.setStyleSheet("color: #ffffff; margin-left: 20px;")
+        self.low_sat_spin = QSpinBox()
+        self.low_sat_spin.setRange(1, 20)
+        self.low_sat_spin.setValue(self.settings['low_satellites_threshold'])
+        self.low_sat_spin.setSuffix(" satellites)")
+        self.low_sat_spin.setStyleSheet("color: #ffffff;")
+        low_sat_layout.addWidget(self.alert_low_sat_cb)
+        low_sat_layout.addWidget(self.low_sat_spin)
+        low_sat_layout.addStretch()
+        alerts_layout.addLayout(low_sat_layout)
+        
+        alerts_layout.addSpacing(10)
+        
+        # Alert cooldown
+        cooldown_layout = QHBoxLayout()
+        cooldown_label = QLabel("Alert cooldown:")
+        cooldown_label.setStyleSheet("color: #ffffff;")
+        self.cooldown_spin = QSpinBox()
+        self.cooldown_spin.setRange(1, 60)
+        self.cooldown_spin.setValue(self.settings['alert_cooldown_minutes'])
+        self.cooldown_spin.setSuffix(" minutes")
+        self.cooldown_spin.setStyleSheet("color: #ffffff;")
+        cooldown_layout.addWidget(cooldown_label)
+        cooldown_layout.addWidget(self.cooldown_spin)
+        cooldown_layout.addStretch()
+        alerts_layout.addLayout(cooldown_layout)
+        
+        alerts_group.setLayout(alerts_layout)
+        layout.addWidget(alerts_group)
+        
+        # System Tray group
+        tray_group = QGroupBox("System Tray")
+        tray_layout = QVBoxLayout()
+        
+        self.show_tray_cb = QCheckBox("Show tray icon (minimize to tray)")
+        self.show_tray_cb.setChecked(self.settings['show_tray_icon'])
+        self.show_tray_cb.setStyleSheet("color: #ffffff;")
+        tray_layout.addWidget(self.show_tray_cb)
+        
+        tray_group.setLayout(tray_layout)
+        layout.addWidget(tray_group)
+        
+        layout.addStretch()
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        save_btn = QPushButton("Save")
+        save_btn.setStyleSheet("background-color: #4fc3f7; color: #000; font-weight: bold; padding: 8px;")
+        save_btn.clicked.connect(self.accept)
+        button_layout.addWidget(save_btn)
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setStyleSheet("background-color: #555; color: #fff; padding: 8px;")
+        cancel_btn.clicked.connect(self.reject)
+        button_layout.addWidget(cancel_btn)
+        
+        layout.addLayout(button_layout)
+        
+        self.setLayout(layout)
+    
+    def get_settings(self):
+        """Return current settings from dialog"""
+        return {
+            'alerts_enabled': self.alerts_enabled_cb.isChecked(),
+            'alert_connection_lost': self.alert_conn_lost_cb.isChecked(),
+            'alert_connection_restored': self.alert_conn_restored_cb.isChecked(),
+            'alert_low_data_rate': self.alert_low_data_cb.isChecked(),
+            'alert_low_satellites': self.alert_low_sat_cb.isChecked(),
+            'low_data_rate_threshold': self.low_data_spin.value(),
+            'low_satellites_threshold': self.low_sat_spin.value(),
+            'alert_cooldown_minutes': self.cooldown_spin.value(),
+            'show_tray_icon': self.show_tray_cb.isChecked()
+        }
+
 # ---------- Add Caster Dialog ----------
 class AddCasterDialog(QDialog):
     def __init__(self, parent=None, data=None):
@@ -660,8 +865,17 @@ class NTRIPCheckerPro(QWidget):
         self.signals.data_signal.connect(self.on_data)
         self.signals.disconnect_signal.connect(self.on_disconnect)
 
+        # Alert tracking
+        self.last_alert = {}  # caster_name -> {alert_type: timestamp}
+        self.last_connection_status = {}  # caster_name -> True/False
+        self.low_data_start_time = {}  # caster_name -> timestamp when data rate dropped
+        self.low_data_alert_sent = {}  # caster_name -> bool (has alert been sent for current low period)
+        self.alerts_startup_time = datetime.now()  # Delay alerts after startup
+
+        self.load_settings()
         self.load_casters()
         self.init_ui()
+        self.init_tray_icon()
         self.init_timers()
         self.auto_connect_all()
 
@@ -669,6 +883,53 @@ class NTRIPCheckerPro(QWidget):
     def get_casters_path(self):
         """Get absolute path to casters.json (from environment or script directory)"""
         return CASTERS_FILENAME
+    
+    def get_settings_path(self):
+        """Get absolute path to settings.json"""
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(script_dir, "settings.json")
+    
+    def load_settings(self):
+        """Load settings from settings.json"""
+        settings_path = self.get_settings_path()
+        
+        # Default settings
+        default_settings = {
+            'alerts_enabled': True,
+            'alert_connection_lost': True,
+            'alert_connection_restored': True,
+            'alert_low_data_rate': True,
+            'alert_low_satellites': True,
+            'low_data_rate_threshold': 100,
+            'low_satellites_threshold': 4,
+            'alert_cooldown_minutes': 5,
+            'show_tray_icon': True
+        }
+        
+        if not os.path.exists(settings_path):
+            self.settings = default_settings.copy()
+            self.save_settings()
+            return
+        
+        try:
+            with open(settings_path, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+                # Merge with defaults (in case new settings added)
+                self.settings = {**default_settings, **loaded}
+            logging.info(f"Loaded settings from: {settings_path}")
+        except Exception:
+            logging.exception(f"Failed loading settings.json, using defaults")
+            self.settings = default_settings.copy()
+    
+    def save_settings(self):
+        """Save settings to settings.json"""
+        settings_path = self.get_settings_path()
+        try:
+            with open(settings_path, "w", encoding="utf-8") as f:
+                json.dump(self.settings, f, indent=2)
+            logging.info(f"Saved settings to: {settings_path}")
+        except Exception:
+            logging.exception("Failed to save settings.json")
     
     def load_casters(self):
         casters_path = self.get_casters_path()
@@ -711,6 +972,12 @@ class NTRIPCheckerPro(QWidget):
         
         export_all_action = export_menu.addAction("Export All Data...")
         export_all_action.triggered.connect(self.export_all_data)
+        
+        file_menu.addSeparator()
+        
+        # Preferences action
+        preferences_action = file_menu.addAction("Preferences...")
+        preferences_action.triggered.connect(self.show_preferences_dialog)
         
         # Help menu
         help_menu = self.menu_bar.addMenu("Help")
@@ -1740,7 +2007,9 @@ class NTRIPCheckerPro(QWidget):
         client = NTRIPClient(caster, self.signals)
         self.clients[name] = client
         self.start_times[name] = datetime.now()
-        self.last_bytes[name] = 0
+        # Don't set last_bytes yet - wait for first data rate measurement
+        # Initialize connection status to None (not False) to avoid false "restored" alert
+        self.last_connection_status[name] = None
         client.start()
         self.on_status(name, "🟡 Connecting...")
         self.update_button_state(name, True)
@@ -1941,6 +2210,9 @@ class NTRIPCheckerPro(QWidget):
 
     def on_disconnect(self, caster_name):
         self.update_button_state(caster_name, False)
+        # Clear start time when disconnected so uptime resets
+        if caster_name in self.start_times:
+            del self.start_times[caster_name]
 
     def on_data(self, caster_name, data):
         try:
@@ -2011,10 +2283,25 @@ class NTRIPCheckerPro(QWidget):
             total = getattr(client, "total_bytes", 0)
             last = self.last_bytes.get(name, 0)
             bps = total - last
+            # Initialize last_bytes on first measurement
+            if name not in self.last_bytes:
+                bps = 0  # First measurement, show 0
+            
+            # Store current data rate BEFORE updating last_bytes (for alerts)
+            if not hasattr(self, 'current_data_rates'):
+                self.current_data_rates = {}
+            self.current_data_rates[name] = bps
+            
+            # Update last_bytes for next measurement
             self.last_bytes[name] = total
             self.caster_list.setItem(r, 4, QTableWidgetItem(str(bps)))
             start = self.start_times.get(name)
-            if start and getattr(client, "running", False):
+            # Check status text to see if connected but no data
+            status_item = self.caster_list.item(r, 2)
+            status_text = status_item.text() if status_item else ""
+            is_no_data = "no data" in status_text.lower()
+            
+            if start and getattr(client, "running", False) and not is_no_data:
                 uptime = now - start
                 self.caster_list.setItem(r, 5, QTableWidgetItem(self.format_timedelta(uptime)))
             else:
@@ -2031,6 +2318,9 @@ class NTRIPCheckerPro(QWidget):
                     self.update_map_popups()
             except Exception:
                 logging.debug("Failed to update map popups", exc_info=True)
+        
+        # Check for alert conditions
+        self.check_alerts()
         
         # Auto-refresh removed - UI updates every second via update_display()
         # No automatic reconnection - user has full control
@@ -2051,10 +2341,217 @@ class NTRIPCheckerPro(QWidget):
             logging.info("All casters already connected")
 
     # ---------- About Dialog ----------
+    def closeEvent(self, event):
+        """Handle application close - stop all threads and hide tray icon"""
+        logging.info("Application closing, stopping all connections...")
+        
+        # Hide tray icon first to stop notifications
+        if hasattr(self, 'tray_icon'):
+            self.tray_icon.hide()
+        
+        # Stop all client threads
+        for name, client in self.clients.items():
+            if client and hasattr(client, 'running'):
+                try:
+                    client.stop(user_initiated=True)
+                except Exception:
+                    logging.debug(f"Error stopping client {name}", exc_info=True)
+        
+        # Wait briefly for threads to stop
+        import time
+        time.sleep(0.5)
+        
+        event.accept()
+        logging.info("Application closed")
+    
     def show_about_dialog(self):
         """Show About dialog with version info and update check"""
         dialog = AboutDialog(self)
         dialog.exec()
+
+    # ---------- Preferences Dialog ----------
+    def show_preferences_dialog(self):
+        """Show settings/preferences dialog"""
+        dialog = SettingsDialog(self, self.settings)
+        if dialog.exec():
+            # User clicked Save
+            old_tray_setting = self.settings.get('show_tray_icon', True)
+            self.settings = dialog.get_settings()
+            self.save_settings()
+            
+            # Handle tray icon visibility change
+            new_tray_setting = self.settings.get('show_tray_icon', True)
+            if old_tray_setting != new_tray_setting:
+                if new_tray_setting:
+                    self.tray_icon.show()
+                else:
+                    self.tray_icon.hide()
+            
+            logging.info("Settings updated")
+
+    # ---------- System Tray ----------
+    def init_tray_icon(self):
+        """Initialize system tray icon"""
+        self.tray_icon = QSystemTrayIcon(self)
+        
+        # Try to load icon, fallback to default
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.png")
+        if os.path.exists(icon_path):
+            self.tray_icon.setIcon(QIcon(icon_path))
+        else:
+            # Use default Qt icon if custom icon not found
+            self.tray_icon.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_ComputerIcon))
+        
+        self.tray_icon.setToolTip(f"NTRIP Checker PRO v{__version__}")
+        
+        # Create tray menu
+        tray_menu = QMenu()
+        
+        show_action = tray_menu.addAction("Show")
+        show_action.triggered.connect(self.show)
+        
+        hide_action = tray_menu.addAction("Hide")
+        hide_action.triggered.connect(self.hide)
+        
+        tray_menu.addSeparator()
+        
+        quit_action = tray_menu.addAction("Quit")
+        quit_action.triggered.connect(QApplication.quit)
+        
+        self.tray_icon.setContextMenu(tray_menu)
+        
+        # Double-click to show window
+        self.tray_icon.activated.connect(self.on_tray_icon_activated)
+        
+        # Show tray icon if enabled in settings
+        if self.settings.get('show_tray_icon', True):
+            self.tray_icon.show()
+    
+    def on_tray_icon_activated(self, reason):
+        """Handle tray icon activation (click)"""
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            if self.isVisible():
+                self.hide()
+            else:
+                self.show()
+                self.raise_()
+                self.activateWindow()
+
+    # ---------- Desktop Alerts ----------
+    def send_alert(self, caster_name, alert_type, message):
+        """Send desktop notification via system tray"""
+        if not self.settings.get('alerts_enabled', True):
+            return
+        
+        # Check cooldown
+        cooldown_minutes = self.settings.get('alert_cooldown_minutes', 5)
+        if caster_name in self.last_alert:
+            if alert_type in self.last_alert[caster_name]:
+                last_time = self.last_alert[caster_name][alert_type]
+                if (datetime.now() - last_time).total_seconds() < cooldown_minutes * 60:
+                    return  # Too soon, skip alert
+        
+        # Determine icon based on alert type
+        if 'lost' in alert_type or 'low' in alert_type:
+            icon = QSystemTrayIcon.MessageIcon.Warning
+        elif 'restored' in alert_type:
+            icon = QSystemTrayIcon.MessageIcon.Information
+        else:
+            icon = QSystemTrayIcon.MessageIcon.Information
+        
+        # Send notification
+        self.tray_icon.showMessage(
+            f"NTRIP Checker PRO",
+            f"{caster_name}: {message}",
+            icon,
+            5000  # 5 seconds
+        )
+        
+        # Update last alert timestamp
+        if caster_name not in self.last_alert:
+            self.last_alert[caster_name] = {}
+        self.last_alert[caster_name][alert_type] = datetime.now()
+        
+        logging.info(f"Alert sent: {caster_name} - {message}")
+
+    def check_alerts(self):
+        """Check all casters for alert conditions"""
+        if not self.settings.get('alerts_enabled', True):
+            return
+        
+        # Wait 15 seconds after startup before checking alerts
+        if (datetime.now() - self.alerts_startup_time).total_seconds() < 15:
+            return
+        
+        for caster in self.casters:
+            name = caster.get('name', '')
+            client = self.clients.get(name)
+            
+            # Connection status
+            is_connected = client and getattr(client, 'running', False)
+            was_connected = self.last_connection_status.get(name)
+            
+            # Initialize connection status on first check (avoid false alerts)
+            if was_connected is None:
+                self.last_connection_status[name] = is_connected
+                continue  # Skip alerts on first check for this caster
+            
+            # Connection lost alert
+            if was_connected and not is_connected:
+                if self.settings.get('alert_connection_lost', True):
+                    self.send_alert(name, 'connection_lost', '⚠️ Connection lost')
+            
+            # Connection restored alert
+            elif not was_connected and is_connected:
+                if self.settings.get('alert_connection_restored', True):
+                    self.send_alert(name, 'connection_restored', '✓ Connection restored')
+            
+            # Update connection status
+            self.last_connection_status[name] = is_connected
+            
+            # Skip other checks if not connected
+            if not is_connected:
+                continue
+            
+            # Low data rate alert with 30-second buffer
+            if self.settings.get('alert_low_data_rate', True):
+                threshold = self.settings.get('low_data_rate_threshold', 100)
+                
+                # Use current data rate from update_ui() instead of recalculating
+                if not hasattr(self, 'current_data_rates'):
+                    self.current_data_rates = {}
+                data_rate = self.current_data_rates.get(name, 0)
+                
+                # Only check if we have measured data rate at least once
+                if name in self.current_data_rates:
+                    if data_rate < threshold:
+                        # Data rate is low - start or continue timer
+                        if name not in self.low_data_start_time:
+                            self.low_data_start_time[name] = datetime.now()
+                            self.low_data_alert_sent[name] = False
+                        else:
+                            # Check if low data rate has persisted for 30 seconds
+                            low_duration = (datetime.now() - self.low_data_start_time[name]).total_seconds()
+                            if low_duration >= 30 and not self.low_data_alert_sent.get(name, False):
+                                # Send alert only once per low data period
+                                self.send_alert(name, 'low_data_rate', f'⚠️ Low data rate: {data_rate} B/s')
+                                self.low_data_alert_sent[name] = True
+                    else:
+                        # Data rate is good - reset timer and flag
+                        if name in self.low_data_start_time:
+                            del self.low_data_start_time[name]
+                        if name in self.low_data_alert_sent:
+                            del self.low_data_alert_sent[name]
+            
+            # Low satellites alert
+            if self.settings.get('alert_low_satellites', True):
+                threshold = self.settings.get('low_satellites_threshold', 4)
+                sat_stats = self.satellite_stats.get(name, {})
+                # sat_stats contains sets, need to count total unique satellites
+                total_sats = sum(len(sats) for sats in sat_stats.values()) if sat_stats else 0
+                
+                if total_sats > 0 and total_sats < threshold:
+                    self.send_alert(name, 'low_satellites', f'⚠️ Low satellites: {total_sats}')
 
     # ---------- CSV Export ----------
     def export_casters_csv(self):

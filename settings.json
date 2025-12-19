@@ -1,0 +1,11 @@
+{
+  "alerts_enabled": true,
+  "alert_connection_lost": true,
+  "alert_connection_restored": true,
+  "alert_low_data_rate": true,
+  "alert_low_satellites": true,
+  "low_data_rate_threshold": 100,
+  "low_satellites_threshold": 10,
+  "alert_cooldown_minutes": 5,
+  "show_tray_icon": true
+}
