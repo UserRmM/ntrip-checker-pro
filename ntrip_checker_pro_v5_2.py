@@ -5,7 +5,7 @@ __version__ = "5.3"
 __author__ = "Raine Mustonen"
 __github__ = "https://github.com/UserRmM/ntrip-checker-pro"
 
-import sys, io, base64, socket, threading, json, os, time, logging
+import sys, io, base64, socket, threading, json, os, time, logging, csv
 from logging.handlers import RotatingFileHandler
 from datetime import datetime, timedelta
 from functools import partial
@@ -16,7 +16,8 @@ import urllib.error
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QTabWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
     QMessageBox, QPushButton, QHeaderView, QDialog, QFormLayout,
-    QLineEdit, QSpinBox, QHBoxLayout, QSizePolicy, QComboBox, QTextBrowser, QMenuBar, QMenu
+    QLineEdit, QSpinBox, QHBoxLayout, QSizePolicy, QComboBox, QTextBrowser, QMenuBar, QMenu,
+    QFileDialog
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -687,6 +688,29 @@ class NTRIPCheckerPro(QWidget):
     def init_ui(self):
         # Create menu bar
         self.menu_bar = QMenuBar()
+        
+        # File menu
+        file_menu = self.menu_bar.addMenu("File")
+        
+        # Export submenu
+        export_menu = file_menu.addMenu("Export")
+        
+        export_casters_action = export_menu.addAction("Export Casters...")
+        export_casters_action.triggered.connect(self.export_casters_csv)
+        
+        export_messages_action = export_menu.addAction("Export Messages...")
+        export_messages_action.triggered.connect(self.export_messages_csv)
+        
+        export_satellites_action = export_menu.addAction("Export Satellites...")
+        export_satellites_action.triggered.connect(self.export_satellites_csv)
+        
+        export_map_action = export_menu.addAction("Export Map Data...")
+        export_map_action.triggered.connect(self.export_map_csv)
+        
+        export_menu.addSeparator()
+        
+        export_all_action = export_menu.addAction("Export All Data...")
+        export_all_action.triggered.connect(self.export_all_data)
         
         # Help menu
         help_menu = self.menu_bar.addMenu("Help")
@@ -2031,6 +2055,456 @@ class NTRIPCheckerPro(QWidget):
         """Show About dialog with version info and update check"""
         dialog = AboutDialog(self)
         dialog.exec()
+
+    # ---------- CSV Export ----------
+    def export_casters_csv(self):
+        """Export casters data to CSV file"""
+        if not self.casters:
+            QMessageBox.information(self, "No Data", "No casters to export.")
+            return
+        
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Casters to CSV",
+            f"casters_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            "CSV Files (*.csv);;All Files (*)"
+        )
+        
+        if not filename:
+            return
+        
+        try:
+            with open(filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                
+                # Header
+                writer.writerow([
+                    'Timestamp', 'Name', 'Host', 'Port', 'Mountpoint', 
+                    'Status', 'Uptime (seconds)', 'Data Rate (B/s)', 
+                    'Total Bytes', 'Latitude', 'Longitude', 'Altitude'
+                ])
+                
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                
+                for caster in self.casters:
+                    name = caster.get('name', '')
+                    client = self.clients.get(name)
+                    
+                    # Status
+                    if client and getattr(client, 'running', False):
+                        status = 'Connected'
+                        
+                        # Uptime
+                        start_time = self.start_times.get(name)
+                        if start_time:
+                            uptime_sec = int((datetime.now() - start_time).total_seconds())
+                        else:
+                            uptime_sec = 0
+                        
+                        # Data rate
+                        total_bytes = getattr(client, 'total_bytes', 0)
+                        last_bytes = self.last_bytes.get(name, 0)
+                        data_rate = total_bytes - last_bytes
+                    else:
+                        status = 'Disconnected'
+                        uptime_sec = 0
+                        data_rate = 0
+                        total_bytes = 0
+                    
+                    writer.writerow([
+                        timestamp,
+                        name,
+                        caster.get('host', ''),
+                        caster.get('port', ''),
+                        caster.get('mount', ''),
+                        status,
+                        uptime_sec,
+                        data_rate,
+                        total_bytes,
+                        caster.get('lat', ''),
+                        caster.get('lon', ''),
+                        caster.get('alt', '')
+                    ])
+            
+            QMessageBox.information(
+                self,
+                "Export Successful",
+                f"Casters exported successfully to:\n{filename}"
+            )
+            logging.info(f"Exported casters to: {filename}")
+        
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Export Failed",
+                f"Failed to export casters:\n\n{str(e)}"
+            )
+            logging.exception("Failed to export casters CSV")
+
+    def export_messages_csv(self):
+        """Export RTCM messages data to CSV file"""
+        if not self.rtcm_stats:
+            QMessageBox.information(self, "No Data", "No RTCM message data to export.")
+            return
+        
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Messages to CSV",
+            f"messages_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            "CSV Files (*.csv);;All Files (*)"
+        )
+        
+        if not filename:
+            return
+        
+        try:
+            with open(filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                
+                # Header
+                writer.writerow([
+                    'Timestamp', 'Caster', 'Message Type', 
+                    'Description', 'Count', 'Percentage'
+                ])
+                
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                
+                for caster_name, msg_dict in self.rtcm_stats.items():
+                    if not msg_dict:
+                        continue
+                    
+                    total = sum(msg_dict.values())
+                    
+                    for msg_type, count in sorted(msg_dict.items()):
+                        percentage = (count / total * 100) if total > 0 else 0
+                        description = get_rtcm_description(msg_type)
+                        
+                        writer.writerow([
+                            timestamp,
+                            caster_name,
+                            msg_type,
+                            description,
+                            count,
+                            f"{percentage:.1f}%"
+                        ])
+            
+            QMessageBox.information(
+                self,
+                "Export Successful",
+                f"Messages exported successfully to:\n{filename}"
+            )
+            logging.info(f"Exported messages to: {filename}")
+        
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Export Failed",
+                f"Failed to export messages:\n\n{str(e)}"
+            )
+            logging.exception("Failed to export messages CSV")
+
+    def export_satellites_csv(self):
+        """Export satellites data to CSV file"""
+        if not self.satellite_stats:
+            QMessageBox.information(self, "No Data", "No satellite data to export.")
+            return
+        
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Satellites to CSV",
+            f"satellites_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            "CSV Files (*.csv);;All Files (*)"
+        )
+        
+        if not filename:
+            return
+        
+        try:
+            with open(filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                
+                # Header
+                writer.writerow([
+                    'Timestamp', 'Caster', 'Constellation', 
+                    'Satellite Count', 'Percentage'
+                ])
+                
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                
+                for caster_name, sat_dict in self.satellite_stats.items():
+                    if not sat_dict:
+                        continue
+                    
+                    total = sum(sat_dict.values())
+                    
+                    for constellation, count in sorted(sat_dict.items()):
+                        percentage = (count / total * 100) if total > 0 else 0
+                        
+                        writer.writerow([
+                            timestamp,
+                            caster_name,
+                            constellation,
+                            count,
+                            f"{percentage:.1f}%"
+                        ])
+            
+            QMessageBox.information(
+                self,
+                "Export Successful",
+                f"Satellites exported successfully to:\n{filename}"
+            )
+            logging.info(f"Exported satellites to: {filename}")
+        
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Export Failed",
+                f"Failed to export satellites:\n\n{str(e)}"
+            )
+            logging.exception("Failed to export satellites CSV")
+
+    def export_map_csv(self):
+        """Export map location data to CSV file"""
+        map_casters = [c for c in self.casters if c.get('lat') is not None and c.get('lon') is not None]
+        
+        if not map_casters:
+            QMessageBox.information(self, "No Data", "No casters with location data to export.")
+            return
+        
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Map Data to CSV",
+            f"map_locations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            "CSV Files (*.csv);;All Files (*)"
+        )
+        
+        if not filename:
+            return
+        
+        try:
+            with open(filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                
+                # Header
+                writer.writerow([
+                    'Timestamp', 'Name', 'Latitude', 'Longitude', 
+                    'Altitude', 'Status', 'Data Rate (B/s)'
+                ])
+                
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                
+                for caster in map_casters:
+                    name = caster.get('name', '')
+                    client = self.clients.get(name)
+                    
+                    # Status and data rate
+                    if client and getattr(client, 'running', False):
+                        status = 'Connected'
+                        total_bytes = getattr(client, 'total_bytes', 0)
+                        last_bytes = self.last_bytes.get(name, 0)
+                        data_rate = total_bytes - last_bytes
+                    else:
+                        status = 'Disconnected'
+                        data_rate = 0
+                    
+                    writer.writerow([
+                        timestamp,
+                        name,
+                        caster.get('lat', ''),
+                        caster.get('lon', ''),
+                        caster.get('alt', ''),
+                        status,
+                        data_rate
+                    ])
+            
+            QMessageBox.information(
+                self,
+                "Export Successful",
+                f"Map data exported successfully to:\n{filename}"
+            )
+            logging.info(f"Exported map data to: {filename}")
+        
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Export Failed",
+                f"Failed to export map data:\n\n{str(e)}"
+            )
+            logging.exception("Failed to export map data CSV")
+
+    def export_all_data(self):
+        """Export all data (casters, messages, satellites, map) to separate CSV files in a directory"""
+        directory = QFileDialog.getExistingDirectory(
+            self,
+            "Select Directory for Export",
+            "",
+            QFileDialog.Option.ShowDirsOnly
+        )
+        
+        if not directory:
+            return
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        exported_files = []
+        
+        try:
+            # Export casters
+            if self.casters:
+                casters_file = os.path.join(directory, f"casters_{timestamp}.csv")
+                self._export_casters_to_file(casters_file)
+                exported_files.append("casters")
+            
+            # Export messages
+            if self.rtcm_stats:
+                messages_file = os.path.join(directory, f"messages_{timestamp}.csv")
+                self._export_messages_to_file(messages_file)
+                exported_files.append("messages")
+            
+            # Export satellites
+            if self.satellite_stats:
+                satellites_file = os.path.join(directory, f"satellites_{timestamp}.csv")
+                self._export_satellites_to_file(satellites_file)
+                exported_files.append("satellites")
+            
+            # Export map data
+            map_casters = [c for c in self.casters if c.get('lat') is not None and c.get('lon') is not None]
+            if map_casters:
+                map_file = os.path.join(directory, f"map_locations_{timestamp}.csv")
+                self._export_map_to_file(map_file)
+                exported_files.append("map data")
+            
+            if exported_files:
+                QMessageBox.information(
+                    self,
+                    "Export Successful",
+                    f"Exported the following to {directory}:\n\n" + 
+                    "\n".join([f"✓ {f}" for f in exported_files])
+                )
+                logging.info(f"Exported all data to: {directory}")
+            else:
+                QMessageBox.information(
+                    self,
+                    "No Data",
+                    "No data available to export."
+                )
+        
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Export Failed",
+                f"Failed to export all data:\n\n{str(e)}"
+            )
+            logging.exception("Failed to export all data")
+
+    def _export_casters_to_file(self, filename):
+        """Helper: Export casters to specific file"""
+        with open(filename, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                'Timestamp', 'Name', 'Host', 'Port', 'Mountpoint', 
+                'Status', 'Uptime (seconds)', 'Data Rate (B/s)', 
+                'Total Bytes', 'Latitude', 'Longitude', 'Altitude'
+            ])
+            
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            for caster in self.casters:
+                name = caster.get('name', '')
+                client = self.clients.get(name)
+                
+                if client and getattr(client, 'running', False):
+                    status = 'Connected'
+                    start_time = self.start_times.get(name)
+                    uptime_sec = int((datetime.now() - start_time).total_seconds()) if start_time else 0
+                    total_bytes = getattr(client, 'total_bytes', 0)
+                    last_bytes = self.last_bytes.get(name, 0)
+                    data_rate = total_bytes - last_bytes
+                else:
+                    status = 'Disconnected'
+                    uptime_sec = 0
+                    data_rate = 0
+                    total_bytes = 0
+                
+                writer.writerow([
+                    timestamp, name, caster.get('host', ''), caster.get('port', ''),
+                    caster.get('mount', ''), status, uptime_sec, data_rate, total_bytes,
+                    caster.get('lat', ''), caster.get('lon', ''), caster.get('alt', '')
+                ])
+
+    def _export_messages_to_file(self, filename):
+        """Helper: Export messages to specific file"""
+        with open(filename, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                'Timestamp', 'Caster', 'Message Type', 
+                'Description', 'Count', 'Percentage'
+            ])
+            
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            for caster_name, msg_dict in self.rtcm_stats.items():
+                if not msg_dict:
+                    continue
+                total = sum(msg_dict.values())
+                for msg_type, count in sorted(msg_dict.items()):
+                    percentage = (count / total * 100) if total > 0 else 0
+                    description = get_rtcm_description(msg_type)
+                    writer.writerow([
+                        timestamp, caster_name, msg_type, description,
+                        count, f"{percentage:.1f}%"
+                    ])
+
+    def _export_satellites_to_file(self, filename):
+        """Helper: Export satellites to specific file"""
+        with open(filename, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                'Timestamp', 'Caster', 'Constellation', 
+                'Satellite Count', 'Percentage'
+            ])
+            
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            for caster_name, sat_dict in self.satellite_stats.items():
+                if not sat_dict:
+                    continue
+                total = sum(sat_dict.values())
+                for constellation, count in sorted(sat_dict.items()):
+                    percentage = (count / total * 100) if total > 0 else 0
+                    writer.writerow([
+                        timestamp, caster_name, constellation,
+                        count, f"{percentage:.1f}%"
+                    ])
+
+    def _export_map_to_file(self, filename):
+        """Helper: Export map data to specific file"""
+        with open(filename, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                'Timestamp', 'Name', 'Latitude', 'Longitude', 
+                'Altitude', 'Status', 'Data Rate (B/s)'
+            ])
+            
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            map_casters = [c for c in self.casters if c.get('lat') is not None and c.get('lon') is not None]
+            for caster in map_casters:
+                name = caster.get('name', '')
+                client = self.clients.get(name)
+                
+                if client and getattr(client, 'running', False):
+                    status = 'Connected'
+                    total_bytes = getattr(client, 'total_bytes', 0)
+                    last_bytes = self.last_bytes.get(name, 0)
+                    data_rate = total_bytes - last_bytes
+                else:
+                    status = 'Disconnected'
+                    data_rate = 0
+                
+                writer.writerow([
+                    timestamp, name, caster.get('lat', ''), caster.get('lon', ''),
+                    caster.get('alt', ''), status, data_rate
+                ])
 
     # ---------- Messages ----------
     def close_detail_panel(self):
