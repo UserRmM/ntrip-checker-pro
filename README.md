@@ -1,20 +1,24 @@
-# NTRIP Checker PRO v5.2
+# NTRIP Checker PRO v5.3
 
-A professional GNSS NTRIP client application for monitoring and analyzing NTRIP caster streams. Built with PyQt6, provides real-time data visualization, RTCM message statistics, interactive mapping with RTK coverage visualization, and automatic mountpoint discovery from NTRIP casters.
+A professional GNSS NTRIP client application for monitoring and analyzing NTRIP caster streams. Built with PyQt6, provides real-time data visualization, RTCM message statistics, interactive mapping with RTK coverage visualization, automatic mountpoint discovery, desktop alerts, and CSV export capabilities.
 
 ## Features
 
 ✅ **Multi-Caster Management** — Add, edit, and remove multiple NTRIP casters  
 ✅ **Sourcetable Browser** — Automatically discover and add mountpoints from any NTRIP caster  
+✅ **Desktop Alerts** — Configurable notifications for connection status, low data rate, and low satellites  
+✅ **System Tray Integration** — Minimize to tray with context menu and quick access  
+✅ **CSV Export** — Export casters, messages, satellites, map data, or all data to CSV files  
 ✅ **Real-Time Monitoring** — Live byte rate (B/s) and uptime tracking  
 ✅ **Satellite Tracking** — Real-time GNSS constellation monitoring (GPS, GLONASS, Galileo, BeiDou, QZSS, SBAS)  
 ✅ **RTCM Message Analysis** — Parse and visualize RTCM message types with constellation-colored MSM messages  
 ✅ **Interactive Mapping** — Leaflet-based map with real-time updates and 20 km RTK coverage circles  
 ✅ **Detail Panels** — Context-sensitive panels on all tabs showing real-time statistics  
 ✅ **Real-Time Map Popups** — Auto-updating popups showing live status, data rate, satellites, and RTCM messages  
+✅ **Smart Reconnect** — Intelligent reconnection logic distinguishing network issues from mount point problems  
 ✅ **Dark Theme UI** — Modern dark interface with excellent contrast and readability  
-✅ **Data Persistence** — Caster configurations saved to JSON  
-✅ **User-Controlled Connections** — Manual connect/disconnect with no auto-reconnect after user stop  
+✅ **Data Persistence** — Caster configurations and user preferences saved to JSON  
+✅ **User-Controlled Connections** — Manual connect/disconnect with smart reconnect for network issues only  
 ✅ **Logging** — Console and rotating file logging for debugging  
 ✅ **Cross-Platform** — Windows, Linux, Raspberry Pi support  
 

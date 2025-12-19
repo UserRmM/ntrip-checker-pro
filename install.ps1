@@ -1,5 +1,5 @@
 # NTRIP Checker PRO - Automatic Installer for Windows
-# Version 5.3 Development
+# Version 5.3
 
 $ErrorActionPreference = "Stop"
 
@@ -13,7 +13,7 @@ function Write-Error { Write-Host "✗ $args" -ForegroundColor Red }
 Write-Host ""
 Write-Info "╔════════════════════════════════════════╗"
 Write-Info "║   NTRIP Checker PRO - Installer       ║"
-Write-Info "║   Version 5.3 Development             ║"
+Write-Info "║   Version 5.3                         ║"
 Write-Info "╚════════════════════════════════════════╝"
 Write-Host ""
 

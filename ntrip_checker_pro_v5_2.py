@@ -3917,7 +3917,7 @@ class SourcetableFetchWorker(QObject):
             sock.connect((self.host, self.port))
             
             auth = base64.b64encode(f"{self.user}:{self.password}".encode()).decode()
-            request = f"GET / HTTP/1.1\r\nHost: {self.host}\r\nNtrip-Version: Ntrip/2.0\r\nUser-Agent: NTRIP NTRIPCheckerPro/5.2\r\nAuthorization: Basic {auth}\r\n\r\n"
+            request = f"GET / HTTP/1.1\r\nHost: {self.host}\r\nNtrip-Version: Ntrip/2.0\r\nUser-Agent: NTRIP NTRIPCheckerPro/5.3\r\nAuthorization: Basic {auth}\r\n\r\n"
             sock.sendall(request.encode())
             
             response = b""

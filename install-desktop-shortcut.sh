@@ -31,7 +31,7 @@ mkdir -p ~/.local/share/applications
 # Create the desktop entry with absolute paths
 cat > ~/.local/share/applications/ntrip-checker-pro.desktop << EOF
 [Desktop Entry]
-Version=5.2
+Version=5.3
 Type=Application
 Name=NTRIP Checker PRO
 Comment=Professional NTRIP client for GNSS base stations

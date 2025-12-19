@@ -116,7 +116,7 @@ Create a file `~/.local/share/applications/ntrip-checker-pro.desktop`:
 
 ```ini
 [Desktop Entry]
-Version=5.2
+Version=5.3
 Type=Application
 Name=NTRIP Checker PRO
 Comment=Professional NTRIP client for GNSS base stations
